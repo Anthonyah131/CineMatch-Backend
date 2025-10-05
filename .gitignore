@@ -54,3 +54,14 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Environment variables and secrets
+.env
+.env.local
+.env.production
+.env.development
+
+# Firebase service account key
+serviceAccountKey.json
+firebase-key.json
+**/firebase-credentials.json

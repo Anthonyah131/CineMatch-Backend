@@ -14,7 +14,7 @@ describe('HelloController', () => {
 
   it('should return a hello message', () => {
     expect(controller.sayHello()).toEqual({
-      message: '🎬 Hola Mundo desde CineMatch Backend 🚀',
+      message: 'Ã°Å¸Å½Â¬ Hola Mundo desde CineMatch Backend Ã°Å¸Å¡â‚¬',
     });
   });
 });
