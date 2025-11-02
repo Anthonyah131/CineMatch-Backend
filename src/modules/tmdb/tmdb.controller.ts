@@ -1,8 +1,16 @@
 import { Controller, Get, Query, Param, ParseIntPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { TmdbService } from './tmdb.service';
 
 @ApiTags('tmdb')
+@ApiBearerAuth()
 @Controller('tmdb')
 export class TmdbController {
   constructor(private readonly tmdbService: TmdbService) {}

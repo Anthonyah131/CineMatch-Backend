@@ -69,6 +69,16 @@ export class UsersService {
           region: 'US',
           profilePublic: true,
         },
+        authProviders: createUserDto.authProvider
+          ? [
+              {
+                provider: createUserDto.authProvider.provider,
+                providerId: createUserDto.authProvider.providerId,
+                linkedAt: now.toDate(),
+              },
+            ]
+          : [],
+        emailVerified: createUserDto.emailVerified || false,
         createdAt: now,
         updatedAt: now,
       };
@@ -131,6 +141,51 @@ export class UsersService {
         throw error;
       }
       throw new Error(`Failed to delete user: ${getErrorMessage(error)}`);
+    }
+  }
+
+  /**
+   * Add or update auth provider for user
+   */
+  async addOrUpdateAuthProvider(
+    uid: string,
+    provider: 'google' | 'facebook' | 'apple' | 'email',
+    providerId: string,
+  ): Promise<void> {
+    try {
+      const userRef = this.collection.doc(uid);
+      const doc = await userRef.get();
+
+      if (!doc.exists) {
+        throw new NotFoundException('User not found');
+      }
+
+      const userData = doc.data() as User;
+      const existingProviders = userData.authProviders || [];
+
+      // Check if provider already exists
+      const providerExists = existingProviders.some((p) => p.provider === provider);
+
+      if (!providerExists) {
+        // Add new provider
+        await userRef.update({
+          authProviders: [
+            ...existingProviders,
+            {
+              provider,
+              providerId,
+              linkedAt: new Date(),
+            },
+          ],
+          updatedAt: Timestamp.now(),
+        });
+      }
+      // If provider already exists, we don't need to update it
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new Error(`Failed to add auth provider: ${getErrorMessage(error)}`);
     }
   }
 

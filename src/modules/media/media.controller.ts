@@ -8,12 +8,20 @@ import {
   Post,
   Body,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { MediaCacheService } from './media.service';
 import { TmdbService } from '../tmdb/tmdb.service';
 import type { MediaCache } from './media-cache.model';
 
 @ApiTags('media')
+@ApiBearerAuth()
 @Controller('media')
 export class MediaController {
   constructor(

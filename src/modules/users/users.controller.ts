@@ -12,14 +12,24 @@ import {
   ParseIntPipe,
   DefaultValuePipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+  ApiBody,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import type { User, FavoriteItem } from './user.model';
 import type { Follower, Following } from './user-relations.model';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('users')
+@ApiBearerAuth()
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
@@ -50,10 +60,25 @@ export class UsersController {
   }
 
   /**
-   * Update user
+   * Update current user's profile
+   */
+  @Put('me')
+  @ApiOperation({ summary: 'Update current user information' })
+  @ApiBody({ type: UpdateUserDto })
+  @ApiResponse({ status: 200, description: 'User updated successfully' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async updateCurrentUser(
+    @CurrentUser('uid') uid: string,
+    @Body() updateUserDto: UpdateUserDto,
+  ): Promise<User> {
+    return this.usersService.updateUser(uid, updateUserDto);
+  }
+
+  /**
+   * Update user (admin endpoint)
    */
   @Put(':uid')
-  @ApiOperation({ summary: 'Update user information' })
+  @ApiOperation({ summary: 'Update user information (admin)' })
   @ApiParam({ name: 'uid', description: 'User unique identifier' })
   @ApiBody({ type: UpdateUserDto })
   @ApiResponse({ status: 200, description: 'User updated successfully' })
@@ -63,11 +88,23 @@ export class UsersController {
   }
 
   /**
-   * Delete user
+   * Delete current user's account
+   */
+  @Delete('me')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete current user account' })
+  @ApiResponse({ status: 204, description: 'User deleted successfully' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async deleteCurrentUser(@CurrentUser('uid') uid: string): Promise<void> {
+    return this.usersService.deleteUser(uid);
+  }
+
+  /**
+   * Delete user (admin endpoint)
    */
   @Delete(':uid')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete user account' })
+  @ApiOperation({ summary: 'Delete user account (admin)' })
   @ApiParam({ name: 'uid', description: 'User unique identifier' })
   @ApiResponse({ status: 204, description: 'User deleted successfully' })
   @ApiResponse({ status: 404, description: 'User not found' })
@@ -76,11 +113,26 @@ export class UsersController {
   }
 
   /**
-   * Add favorite item
+   * Add favorite item to current user
+   */
+  @Post('me/favorites')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Add a movie/show to current user favorites' })
+  @ApiResponse({ status: 201, description: 'Favorite added successfully' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async addFavoriteToCurrentUser(
+    @CurrentUser('uid') uid: string,
+    @Body() favoriteItem: FavoriteItem,
+  ): Promise<void> {
+    return this.usersService.addFavorite(uid, favoriteItem);
+  }
+
+  /**
+   * Add favorite item (admin endpoint)
    */
   @Post(':uid/favorites')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Add a movie/show to user favorites' })
+  @ApiOperation({ summary: 'Add a movie/show to user favorites (admin)' })
   @ApiParam({ name: 'uid', description: 'User unique identifier' })
   @ApiResponse({ status: 201, description: 'Favorite added successfully' })
   @ApiResponse({ status: 404, description: 'User not found' })
@@ -89,10 +141,25 @@ export class UsersController {
   }
 
   /**
-   * Remove favorite item
+   * Remove favorite item from current user
+   */
+  @Delete('me/favorites/:tmdbId/:mediaType')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove a movie/show from current user favorites' })
+  async removeFavoriteFromCurrentUser(
+    @CurrentUser('uid') uid: string,
+    @Param('tmdbId', ParseIntPipe) tmdbId: number,
+    @Param('mediaType') mediaType: string,
+  ): Promise<void> {
+    return this.usersService.removeFavorite(uid, tmdbId, mediaType);
+  }
+
+  /**
+   * Remove favorite item (admin endpoint)
    */
   @Delete(':uid/favorites/:tmdbId/:mediaType')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove a movie/show from user favorites (admin)' })
   async removeFavorite(
     @Param('uid') uid: string,
     @Param('tmdbId', ParseIntPipe) tmdbId: number,
@@ -102,10 +169,39 @@ export class UsersController {
   }
 
   /**
-   * Follow a user
+   * Follow a user (current user follows target)
+   */
+  @Post('follow/:targetUid')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Follow a user' })
+  @ApiParam({ name: 'targetUid', description: 'User to follow' })
+  async followUserAsCurrent(
+    @CurrentUser('uid') followerUid: string,
+    @Param('targetUid') followedUid: string,
+  ): Promise<void> {
+    return this.usersService.followUser(followerUid, followedUid);
+  }
+
+  /**
+   * Unfollow a user (current user unfollows target)
+   */
+  @Delete('follow/:targetUid')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Unfollow a user' })
+  @ApiParam({ name: 'targetUid', description: 'User to unfollow' })
+  async unfollowUserAsCurrent(
+    @CurrentUser('uid') followerUid: string,
+    @Param('targetUid') followedUid: string,
+  ): Promise<void> {
+    return this.usersService.unfollowUser(followerUid, followedUid);
+  }
+
+  /**
+   * Follow a user (admin endpoint)
    */
   @Post(':uid/follow/:targetUid')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Follow a user (admin)' })
   async followUser(
     @Param('uid') followerUid: string,
     @Param('targetUid') followedUid: string,
@@ -114,10 +210,11 @@ export class UsersController {
   }
 
   /**
-   * Unfollow a user
+   * Unfollow a user (admin endpoint)
    */
   @Delete(':uid/follow/:targetUid')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Unfollow a user (admin)' })
   async unfollowUser(
     @Param('uid') followerUid: string,
     @Param('targetUid') followedUid: string,
@@ -126,9 +223,47 @@ export class UsersController {
   }
 
   /**
+   * Get current user's followers
+   */
+  @Get('me/followers')
+  @ApiOperation({ summary: "Get current user's followers" })
+  async getCurrentUserFollowers(
+    @CurrentUser('uid') uid: string,
+    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
+  ): Promise<Follower[]> {
+    return this.usersService.getFollowers(uid, limit);
+  }
+
+  /**
+   * Get current user's following
+   */
+  @Get('me/following')
+  @ApiOperation({ summary: "Get current user's following" })
+  async getCurrentUserFollowing(
+    @CurrentUser('uid') uid: string,
+    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
+  ): Promise<Following[]> {
+    return this.usersService.getFollowing(uid, limit);
+  }
+
+  /**
+   * Check if current user follows target user
+   */
+  @Get('me/following/:targetUid')
+  @ApiOperation({ summary: 'Check if current user follows target user' })
+  async isCurrentUserFollowing(
+    @CurrentUser('uid') followerUid: string,
+    @Param('targetUid') followedUid: string,
+  ): Promise<{ isFollowing: boolean }> {
+    const isFollowing = await this.usersService.isFollowing(followerUid, followedUid);
+    return { isFollowing };
+  }
+
+  /**
    * Get user's followers
    */
   @Get(':uid/followers')
+  @ApiOperation({ summary: "Get user's followers" })
   async getFollowers(
     @Param('uid') uid: string,
     @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
@@ -140,6 +275,7 @@ export class UsersController {
    * Get user's following
    */
   @Get(':uid/following')
+  @ApiOperation({ summary: "Get user's following" })
   async getFollowing(
     @Param('uid') uid: string,
     @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
@@ -151,6 +287,7 @@ export class UsersController {
    * Check if user A follows user B
    */
   @Get(':uid/following/:targetUid')
+  @ApiOperation({ summary: 'Check if user A follows user B' })
   async isFollowing(
     @Param('uid') followerUid: string,
     @Param('targetUid') followedUid: string,

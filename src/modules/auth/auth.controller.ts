@@ -1,39 +1,55 @@
-import { Controller, Post, Get, Body, Headers, Param } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiParam } from '@nestjs/swagger';
+import { Controller, Post, Body, Get } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
+import { AuthResponseDto } from './dto/auth-response.dto';
+import { Public } from './decorators/public.decorator';
+import { CurrentUser } from './decorators/current-user.decorator';
+import { JwtPayload } from './strategies/jwt.strategy';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post('verify')
-  @ApiOperation({ summary: 'Verify Firebase ID token' })
-  @ApiHeader({ name: 'authorization', description: 'Bearer token' })
-  @ApiResponse({ status: 200, description: 'Token verified successfully' })
-  async verifyToken(@Headers('authorization') authHeader: string): Promise<any> {
-    const token = authHeader?.replace('Bearer ', '');
-    if (!token) {
-      throw new Error('No token provided');
-    }
-    return this.authService.verifyToken(token);
+  @Public()
+  @Post('register')
+  @ApiOperation({ summary: 'Register a new user with Firebase token' })
+  @ApiResponse({
+    status: 201,
+    description: 'User registered successfully',
+    type: AuthResponseDto,
+  })
+  @ApiResponse({ status: 409, description: 'User already exists' })
+  @ApiResponse({ status: 401, description: 'Invalid Firebase token' })
+  async register(@Body() registerDto: RegisterDto): Promise<AuthResponseDto> {
+    return this.authService.register(registerDto);
   }
 
-  @Get('user/:uid')
-  @ApiOperation({ summary: 'Get user by UID' })
-  @ApiParam({ name: 'uid', description: 'User UID' })
-  @ApiResponse({ status: 200, description: 'User retrieved successfully' })
-  async getUserByUid(@Param('uid') uid: string): Promise<any> {
-    return this.authService.getUserByUid(uid);
+  @Public()
+  @Post('login')
+  @ApiOperation({
+    summary: "Login with Firebase token (creates user automatically if doesn't exist)",
+    description:
+      "Validates Firebase token and returns JWT. If user doesn't exist in database, creates it automatically.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Login successful (user authenticated or created)',
+    type: AuthResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Invalid Firebase token' })
+  async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
+    return this.authService.login(loginDto);
   }
 
-  @Post('custom-token')
-  @ApiOperation({ summary: 'Create custom token for user' })
-  @ApiResponse({ status: 200, description: 'Custom token created successfully' })
-  async createCustomToken(
-    @Body() body: { uid: string; claims?: object },
-  ): Promise<{ customToken: string }> {
-    const customToken = await this.authService.createCustomToken(body.uid, body.claims);
-    return { customToken };
+  @Get('me')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current authenticated user' })
+  @ApiResponse({ status: 200, description: 'Current user information' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  getCurrentUser(@CurrentUser() user: JwtPayload): JwtPayload {
+    return user;
   }
 }

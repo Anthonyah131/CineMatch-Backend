@@ -1,21 +1,36 @@
 import { Controller, Get, Post, Delete, Param, Body } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiBody,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { MatchesService } from './matches.service';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { UserMatch, UserSwipe } from './user-match.model';
 
 export class SwipeDto {
-  userId: string;
   movieId: number;
   liked: boolean;
 }
 
 @ApiTags('matches')
+@ApiBearerAuth()
 @Controller('matches')
 export class MatchesController {
   constructor(private readonly matchesService: MatchesService) {}
 
+  @Get('my-matches')
+  @ApiOperation({ summary: 'Get all matches for current user' })
+  @ApiResponse({ status: 200, description: 'User matches retrieved successfully' })
+  async getMyMatches(@CurrentUser('uid') userId: string): Promise<UserMatch[]> {
+    return this.matchesService.getUserMatches(userId);
+  }
+
   @Get('user/:userId')
-  @ApiOperation({ summary: 'Get all matches for a user' })
+  @ApiOperation({ summary: 'Get all matches for a specific user' })
   @ApiParam({ name: 'userId', description: 'User ID' })
   @ApiResponse({ status: 200, description: 'User matches retrieved successfully' })
   async getUserMatches(@Param('userId') userId: string): Promise<UserMatch[]> {
@@ -31,27 +46,29 @@ export class MatchesController {
   }
 
   @Post('swipe')
-  @ApiOperation({ summary: 'Record a user swipe (like/pass) on a movie' })
+  @ApiOperation({ summary: 'Record current user swipe (like/pass) on a movie' })
   @ApiBody({ type: SwipeDto })
   @ApiResponse({ status: 201, description: 'Swipe recorded successfully' })
-  async recordSwipe(@Body() swipeDto: SwipeDto): Promise<UserSwipe> {
-    return this.matchesService.recordSwipe(swipeDto.userId, swipeDto.movieId, swipeDto.liked);
+  async recordSwipe(
+    @CurrentUser('uid') userId: string,
+    @Body() swipeDto: SwipeDto,
+  ): Promise<UserSwipe> {
+    return this.matchesService.recordSwipe(userId, swipeDto.movieId, swipeDto.liked);
   }
 
-  @Post('check-mutual/:userId1/:userId2/:movieId')
-  @ApiOperation({ summary: 'Check if two users have mutual like for a movie' })
-  @ApiParam({ name: 'userId1', description: 'First user ID' })
-  @ApiParam({ name: 'userId2', description: 'Second user ID' })
+  @Post('check-mutual/:targetUserId/:movieId')
+  @ApiOperation({ summary: 'Check if current user and another user have mutual like for a movie' })
+  @ApiParam({ name: 'targetUserId', description: 'Target user ID to check mutual like with' })
   @ApiParam({ name: 'movieId', description: 'Movie TMDB ID' })
   @ApiResponse({ status: 200, description: 'Mutual like status checked' })
   async checkMutualLike(
-    @Param('userId1') userId1: string,
-    @Param('userId2') userId2: string,
+    @CurrentUser('uid') currentUserId: string,
+    @Param('targetUserId') targetUserId: string,
     @Param('movieId') movieId: string,
   ): Promise<{ hasMutualLike: boolean }> {
     const hasMutualLike = await this.matchesService.checkMutualLike(
-      userId1,
-      userId2,
+      currentUserId,
+      targetUserId,
       parseInt(movieId),
     );
     return { hasMutualLike };

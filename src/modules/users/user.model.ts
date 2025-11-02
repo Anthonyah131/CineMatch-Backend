@@ -9,6 +9,18 @@ export interface FavoriteItem extends MediaInfo {
 }
 
 /**
+ * Authentication provider information
+ */
+export interface AuthProvider {
+  /** Provider type (google, facebook, apple, etc.) */
+  provider: 'google' | 'facebook' | 'apple' | 'email';
+  /** Provider user ID */
+  providerId: string;
+  /** Date when the account was linked */
+  linkedAt: Date;
+}
+
+/**
  * Main User document interface
  */
 export interface User extends BaseDocument {
@@ -21,6 +33,10 @@ export interface User extends BaseDocument {
   followersCount: number;
   followingCount: number;
   settings: UserSettings;
+  /** Authentication providers linked to this account */
+  authProviders: AuthProvider[];
+  /** Email verification status */
+  emailVerified: boolean;
 }
 
 /**
@@ -33,6 +49,11 @@ export interface CreateUserDto {
   bio?: string;
   birthdate?: string;
   settings?: Partial<UserSettings>;
+  authProvider?: {
+    provider: 'google' | 'facebook' | 'apple' | 'email';
+    providerId: string;
+  };
+  emailVerified?: boolean;
 }
 
 /**
