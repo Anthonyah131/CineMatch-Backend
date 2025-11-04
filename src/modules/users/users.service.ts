@@ -211,7 +211,7 @@ export class UsersService {
       }
 
       await userRef.update({
-        favorites: [...userData.favorites, favoriteItem],
+        favorites: [...userData.favorites, { ...favoriteItem, addedAt: new Date() }],
         updatedAt: Timestamp.now(),
       });
     } catch (error) {
@@ -219,6 +219,92 @@ export class UsersService {
         throw error;
       }
       throw new Error(`Failed to add favorite: ${getErrorMessage(error)}`);
+    }
+  }
+
+  /**
+   * Get user's favorites list
+   */
+  async getFavorites(uid: string): Promise<FavoriteItem[]> {
+    try {
+      const user = await this.getUserById(uid);
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      // Return favorites sorted by addedAt date (newest first)
+      return user.favorites.sort((a, b) => {
+        const dateA =
+          a.addedAt instanceof Date ? a.addedAt.getTime() : new Date(a.addedAt).getTime();
+        const dateB =
+          b.addedAt instanceof Date ? b.addedAt.getTime() : new Date(b.addedAt).getTime();
+        return dateB - dateA;
+      });
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new Error(`Failed to get favorites: ${getErrorMessage(error)}`);
+    }
+  }
+
+  /**
+   * Get user's public profile with stats
+   */
+  async getUserProfile(uid: string): Promise<{
+    user: Omit<User, 'settings' | 'authProviders' | 'emailVerified'>;
+    stats: {
+      totalFavorites: number;
+      followersCount: number;
+      followingCount: number;
+    };
+    recentFavorites: FavoriteItem[];
+  }> {
+    try {
+      const user = await this.getUserById(uid);
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      // Get recent favorites (last 10)
+      const recentFavorites = user.favorites
+        .sort((a, b) => {
+          const dateA =
+            a.addedAt instanceof Date ? a.addedAt.getTime() : new Date(a.addedAt).getTime();
+          const dateB =
+            b.addedAt instanceof Date ? b.addedAt.getTime() : new Date(b.addedAt).getTime();
+          return dateB - dateA;
+        })
+        .slice(0, 10);
+
+      // Return public profile data
+      return {
+        user: {
+          displayName: user.displayName,
+          email: user.email,
+          photoURL: user.photoURL,
+          bio: user.bio,
+          birthdate: user.birthdate,
+          favorites: user.favorites,
+          followersCount: user.followersCount,
+          followingCount: user.followingCount,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+        },
+        stats: {
+          totalFavorites: user.favorites.length,
+          followersCount: user.followersCount,
+          followingCount: user.followingCount,
+        },
+        recentFavorites,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new Error(`Failed to get user profile: ${getErrorMessage(error)}`);
     }
   }
 
@@ -356,7 +442,7 @@ export class UsersService {
   }
 
   /**
-   * Get user's followers
+   * Get user's followers with user information
    */
   async getFollowers(uid: string, limit: number = 50): Promise<Follower[]> {
     try {
@@ -367,14 +453,33 @@ export class UsersService {
         .limit(limit)
         .get();
 
-      return snapshot.docs.map((doc) => doc.data() as Follower);
+      // Get follower UIDs
+      const followerDocs = snapshot.docs.map((doc) => doc.data() as Follower);
+
+      // Fetch user information for each follower
+      const followersWithInfo = await Promise.all(
+        followerDocs.map(async (follower) => {
+          const userDoc = await this.collection.doc(follower.uid).get();
+          const userData = userDoc.data() as User | undefined;
+
+          return {
+            uid: follower.uid,
+            displayName: userData?.displayName || '',
+            photoURL: userData?.photoURL || '',
+            bio: userData?.bio || '',
+            followedAt: follower.followedAt,
+          };
+        }),
+      );
+
+      return followersWithInfo as Follower[];
     } catch (error) {
       throw new Error(`Failed to get followers: ${getErrorMessage(error)}`);
     }
   }
 
   /**
-   * Get user's following
+   * Get user's following with user information
    */
   async getFollowing(uid: string, limit: number = 50): Promise<Following[]> {
     try {
@@ -385,7 +490,26 @@ export class UsersService {
         .limit(limit)
         .get();
 
-      return snapshot.docs.map((doc) => doc.data() as Following);
+      // Get following UIDs
+      const followingDocs = snapshot.docs.map((doc) => doc.data() as Following);
+
+      // Fetch user information for each followed user
+      const followingWithInfo = await Promise.all(
+        followingDocs.map(async (following) => {
+          const userDoc = await this.collection.doc(following.uid).get();
+          const userData = userDoc.data() as User | undefined;
+
+          return {
+            uid: following.uid,
+            displayName: userData?.displayName || '',
+            photoURL: userData?.photoURL || '',
+            bio: userData?.bio || '',
+            followedAt: following.followedAt,
+          };
+        }),
+      );
+
+      return followingWithInfo as Following[];
     } catch (error) {
       throw new Error(`Failed to get following: ${getErrorMessage(error)}`);
     }

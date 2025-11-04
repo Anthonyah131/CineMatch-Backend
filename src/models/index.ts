@@ -8,8 +8,8 @@ export * from '../modules/users/user-stats.model';
 
 // Content models
 export * from '../modules/lists/list.model';
-export * from '../modules/media/user-media.model';
-export * from '../modules/media/media-cache.model';
+export * from '../modules/media-cache/media-cache.model';
+export * from '../modules/media-logs/media-log.model';
 
 // Game models
 export * from '../modules/matches/match.model';

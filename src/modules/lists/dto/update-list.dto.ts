@@ -1,23 +1,24 @@
-import { IsString, IsOptional, IsBoolean, IsNotEmpty, ValidateNested } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsOptional, IsBoolean, ValidateNested } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { ListCoverDto } from './list-cover.dto';
 
 /**
- * DTO for creating a new list
+ * DTO for updating a list
+ * All fields are optional as this is a partial update
  */
-export class CreateListDto {
-  @ApiProperty({
+export class UpdateListDto {
+  @ApiPropertyOptional({
     description: 'List title',
-    example: 'My Favorite Movies',
+    example: 'My Favorite Sci-Fi Movies',
   })
+  @IsOptional()
   @IsString({ message: 'Title must be a string' })
-  @IsNotEmpty({ message: 'Title cannot be empty' })
-  title: string;
+  title?: string;
 
   @ApiPropertyOptional({
     description: 'List description',
-    example: 'A collection of movies I love',
+    example: 'A collection of my all-time favorite science fiction films',
   })
   @IsOptional()
   @IsString({ message: 'Description must be a string' })
@@ -25,7 +26,6 @@ export class CreateListDto {
 
   @ApiPropertyOptional({
     description: 'Whether the list is public',
-    default: true,
     example: true,
   })
   @IsOptional()
@@ -36,11 +36,11 @@ export class CreateListDto {
     description: 'Cover media for the list',
     type: ListCoverDto,
     example: {
-      tmdbId: 550,
+      tmdbId: 603,
       mediaType: 'movie',
-      title: 'Fight Club',
-      posterPath: '/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg',
-      customTitle: 'My Favorite Collection',
+      title: 'The Matrix',
+      posterPath: '/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
+      customTitle: 'Best Sci-Fi Ever',
     },
   })
   @IsOptional()

@@ -19,6 +19,28 @@ export interface Following {
 }
 
 /**
+ * Follower with user information for API responses
+ */
+export interface FollowerWithInfo {
+  uid: string;
+  displayName: string;
+  photoURL: string;
+  bio: string;
+  followedAt: Timestamp | Date;
+}
+
+/**
+ * Following with user information for API responses
+ */
+export interface FollowingWithInfo {
+  uid: string;
+  displayName: string;
+  photoURL: string;
+  bio: string;
+  followedAt: Timestamp | Date;
+}
+
+/**
  * DTO for creating follow relationships
  */
 export interface CreateFollowDto {

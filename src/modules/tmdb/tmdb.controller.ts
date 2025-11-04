@@ -9,11 +9,19 @@ import {
 } from '@nestjs/swagger';
 import { TmdbService } from './tmdb.service';
 
+/**
+ * Controller for The Movie Database (TMDb) API integration
+ * Provides endpoints to access movie and TV show data
+ */
 @ApiTags('tmdb')
 @ApiBearerAuth()
 @Controller('tmdb')
 export class TmdbController {
   constructor(private readonly tmdbService: TmdbService) {}
+
+  // ======================
+  // MOVIES ENDPOINTS
+  // ======================
 
   @Get('movies/popular')
   @ApiOperation({ summary: 'Get popular movies from TMDb' })
@@ -67,44 +75,6 @@ export class TmdbController {
     return this.tmdbService.getTopRatedMovies(page);
   }
 
-  @Get('movies/:id')
-  @ApiOperation({ summary: 'Get specific movie details' })
-  @ApiParam({ name: 'id', description: 'TMDb movie ID', example: 27205 })
-  @ApiResponse({ status: 200, description: 'Movie details retrieved successfully' })
-  @ApiResponse({ status: 404, description: 'Movie not found' })
-  async getMovieDetails(@Param('id', ParseIntPipe) id: number) {
-    return this.tmdbService.getMovieDetails(id);
-  }
-
-  @Get('tv/popular')
-  @ApiOperation({ summary: 'Get popular TV shows from TMDb' })
-  @ApiQuery({ name: 'page', required: false, description: 'Page number', example: 1 })
-  @ApiResponse({ status: 200, description: 'Popular TV shows list retrieved successfully' })
-  async getPopularTVShows(@Query('page', ParseIntPipe) page?: number) {
-    return this.tmdbService.getPopularTVShows(page);
-  }
-
-  @Get('tv/search')
-  @ApiOperation({ summary: 'Search TV shows in TMDb' })
-  @ApiQuery({
-    name: 'query',
-    required: true,
-    description: 'Search term',
-    example: 'Breaking Bad',
-  })
-  @ApiQuery({ name: 'page', required: false, description: 'Page number', example: 1 })
-  @ApiResponse({ status: 200, description: 'Search results retrieved successfully' })
-  async searchTVShows(@Query('query') query: string, @Query('page', ParseIntPipe) page?: number) {
-    return this.tmdbService.searchTVShows(query, page);
-  }
-
-  @Get('configuration')
-  @ApiOperation({ summary: 'Get TMDb API configuration' })
-  @ApiResponse({ status: 200, description: 'TMDb configuration retrieved successfully' })
-  async getConfiguration() {
-    return this.tmdbService.getConfiguration();
-  }
-
   @Get('movies/discover')
   @ApiOperation({ summary: 'Discover movies with advanced filters' })
   @ApiQuery({ name: 'page', required: false, description: 'Page number', example: 1 })
@@ -137,6 +107,15 @@ export class TmdbController {
     return this.tmdbService.discoverMovies(movieFilters, page);
   }
 
+  @Get('movies/:id')
+  @ApiOperation({ summary: 'Get detailed movie information' })
+  @ApiParam({ name: 'id', description: 'TMDb movie ID', example: 27205 })
+  @ApiResponse({ status: 200, description: 'Movie details retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Movie not found' })
+  async getMovieDetails(@Param('id', ParseIntPipe) id: number) {
+    return this.tmdbService.getMovieDetails(id);
+  }
+
   @Get('movies/:id/credits')
   @ApiOperation({ summary: 'Get movie credits (cast and crew)' })
   @ApiParam({ name: 'id', description: 'TMDb movie ID', example: 27205 })
@@ -153,6 +132,43 @@ export class TmdbController {
   @ApiResponse({ status: 404, description: 'Movie not found' })
   async getWatchProviders(@Param('id', ParseIntPipe) id: number) {
     return this.tmdbService.getWatchProviders(id);
+  }
+
+  // ======================
+  // TV SHOWS ENDPOINTS
+  // ======================
+
+  @Get('tv/popular')
+  @ApiOperation({ summary: 'Get popular TV shows from TMDb' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number', example: 1 })
+  @ApiResponse({ status: 200, description: 'Popular TV shows list retrieved successfully' })
+  async getPopularTVShows(@Query('page', ParseIntPipe) page?: number) {
+    return this.tmdbService.getPopularTVShows(page);
+  }
+
+  @Get('tv/search')
+  @ApiOperation({ summary: 'Search TV shows in TMDb' })
+  @ApiQuery({
+    name: 'query',
+    required: true,
+    description: 'Search term',
+    example: 'Breaking Bad',
+  })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number', example: 1 })
+  @ApiResponse({ status: 200, description: 'Search results retrieved successfully' })
+  async searchTVShows(@Query('query') query: string, @Query('page', ParseIntPipe) page?: number) {
+    return this.tmdbService.searchTVShows(query, page);
+  }
+
+  // ======================
+  // CONFIGURATION & GENRES
+  // ======================
+
+  @Get('configuration')
+  @ApiOperation({ summary: 'Get TMDb API configuration' })
+  @ApiResponse({ status: 200, description: 'TMDb configuration retrieved successfully' })
+  async getConfiguration() {
+    return this.tmdbService.getConfiguration();
   }
 
   @Get('genres/movies')

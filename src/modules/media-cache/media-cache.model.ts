@@ -1,5 +1,4 @@
 import { Timestamp } from 'firebase-admin/firestore';
-import { MediaType } from '../../models/base.model';
 
 /**
  * Media cache document interface for storing TMDB data locally
@@ -7,7 +6,7 @@ import { MediaType } from '../../models/base.model';
  */
 export interface MediaCache {
   tmdbId: number;
-  mediaType: MediaType;
+  mediaType: 'movie' | 'tv';
   title: string;
   posterPath: string;
   releaseYear: number;
@@ -17,33 +16,11 @@ export interface MediaCache {
 }
 
 /**
- * Extended media cache with additional details
- */
-export interface ExtendedMediaCache extends MediaCache {
-  overview?: string;
-  backdropPath?: string;
-  originalLanguage?: string;
-  popularity?: number;
-  adult?: boolean;
-  // Movie specific fields
-  runtime?: number;
-  budget?: number;
-  revenue?: number;
-  // TV specific fields
-  numberOfSeasons?: number;
-  numberOfEpisodes?: number;
-  episodeRunTime?: number[];
-  firstAirDate?: string;
-  lastAirDate?: string;
-  status?: string;
-}
-
-/**
  * DTO for creating/updating media cache
  */
 export interface CreateMediaCacheDto {
   tmdbId: number;
-  mediaType: MediaType;
+  mediaType: 'movie' | 'tv';
   title: string;
   posterPath: string;
   releaseYear: number;
@@ -69,7 +46,7 @@ export interface CreateMediaCacheDto {
  * Media search filters
  */
 export interface MediaSearchFilters {
-  mediaType?: MediaType;
+  mediaType?: 'movie' | 'tv';
   genres?: number[];
   releaseYear?: number;
   minVoteAverage?: number;
@@ -82,7 +59,7 @@ export interface MediaSearchFilters {
  */
 export interface PopularMediaItem {
   tmdbId: number;
-  mediaType: MediaType;
+  mediaType: 'movie' | 'tv';
   title: string;
   posterPath: string;
   voteAverage: number;

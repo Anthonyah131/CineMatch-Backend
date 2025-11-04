@@ -24,48 +24,146 @@ import {
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { AddFavoriteDto } from './dto/add-favorite.dto';
 import type { User, FavoriteItem } from './user.model';
 import type { Follower, Following } from './user-relations.model';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
+/**
+ * Users Controller - Manages user profiles, favorites, and social features
+ */
 @ApiTags('users')
 @ApiBearerAuth()
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  /**
-   * Get user by ID
-   */
+  // ==================== USER INFO ====================
+
   @Get(':uid')
-  @ApiOperation({ summary: 'Get user by UID' })
-  @ApiParam({ name: 'uid', description: 'User unique identifier' })
-  @ApiResponse({ status: 200, description: 'User retrieved successfully' })
+  @ApiOperation({
+    summary: 'Get user basic information',
+    description:
+      'Retrieves basic user data by Firebase UID. Use /users/:uid/profile for complete profile.',
+  })
+  @ApiParam({ name: 'uid', description: 'Firebase UID' })
+  @ApiResponse({ status: 200, description: 'User found' })
   @ApiResponse({ status: 404, description: 'User not found' })
   async getUser(@Param('uid') uid: string): Promise<User | null> {
     return this.usersService.getUserById(uid);
   }
 
-  /**
-   * Create a new user
-   */
+  @Get(':uid/profile')
+  @ApiOperation({
+    summary: 'Get user public profile',
+    description:
+      'Retrieves complete public profile including stats (followers, following, favorites count) and recent favorites. ' +
+      'Use this endpoint to display user profiles.',
+  })
+  @ApiParam({ name: 'uid', description: 'Firebase UID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Profile retrieved',
+    schema: {
+      example: {
+        user: {
+          displayName: 'John Doe',
+          email: 'john@example.com',
+          photoURL: 'https://...',
+          bio: 'Movie lover',
+          followersCount: 150,
+          followingCount: 85,
+        },
+        stats: {
+          totalFavorites: 42,
+          followersCount: 150,
+          followingCount: 85,
+        },
+        recentFavorites: [
+          {
+            tmdbId: 550,
+            title: 'Fight Club',
+            mediaType: 'movie',
+            posterPath: '/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg',
+            addedAt: '2024-11-03T19:30:00Z',
+          },
+        ],
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async getUserProfile(@Param('uid') uid: string): Promise<{
+    user: Omit<User, 'settings' | 'authProviders' | 'emailVerified'>;
+    stats: {
+      totalFavorites: number;
+      followersCount: number;
+      followingCount: number;
+    };
+    recentFavorites: FavoriteItem[];
+  }> {
+    return this.usersService.getUserProfile(uid);
+  }
+
+  // ==================== FAVORITES ====================
+
+  @Get('me/favorites')
+  @ApiOperation({
+    summary: 'Get my favorites',
+    description: 'Retrieves authenticated user favorites list, sorted by most recent first.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Favorites retrieved',
+    schema: {
+      example: [
+        {
+          tmdbId: 550,
+          title: 'Fight Club',
+          mediaType: 'movie',
+          posterPath: '/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg',
+          addedAt: '2024-11-03T19:30:00Z',
+        },
+      ],
+    },
+  })
+  async getCurrentUserFavorites(@CurrentUser('uid') uid: string): Promise<FavoriteItem[]> {
+    return this.usersService.getFavorites(uid);
+  }
+
+  @Get(':uid/favorites')
+  @ApiOperation({
+    summary: 'Get user favorites',
+    description: "Retrieves another user's favorites list.",
+  })
+  @ApiParam({ name: 'uid', description: 'Firebase UID' })
+  @ApiResponse({ status: 200, description: 'Favorites retrieved' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async getUserFavorites(@Param('uid') uid: string): Promise<FavoriteItem[]> {
+    return this.usersService.getFavorites(uid);
+  }
+
+  // ==================== USER MANAGEMENT ====================
+
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a new user' })
+  @ApiOperation({
+    summary: 'Create user',
+    description: 'Creates a new user (typically called by auth service). Not for public use.',
+  })
   @ApiBody({ type: CreateUserDto })
-  @ApiResponse({ status: 201, description: 'User created successfully' })
-  @ApiResponse({ status: 400, description: 'Invalid input data' })
+  @ApiResponse({ status: 201, description: 'User created' })
+  @ApiResponse({ status: 409, description: 'User already exists' })
   async createUser(@Body() createUserDto: CreateUserDto): Promise<User> {
     return this.usersService.createUser(createUserDto);
   }
 
-  /**
-   * Update current user's profile
-   */
   @Put('me')
-  @ApiOperation({ summary: 'Update current user information' })
+  @ApiOperation({
+    summary: 'Update my profile',
+    description: 'Updates authenticated user profile information (name, bio, photo, etc.).',
+  })
   @ApiBody({ type: UpdateUserDto })
-  @ApiResponse({ status: 200, description: 'User updated successfully' })
+  @ApiResponse({ status: 200, description: 'Profile updated' })
   @ApiResponse({ status: 404, description: 'User not found' })
   async updateCurrentUser(
     @CurrentUser('uid') uid: string,
@@ -74,56 +172,87 @@ export class UsersController {
     return this.usersService.updateUser(uid, updateUserDto);
   }
 
-  /**
-   * Update user (admin endpoint)
-   */
   @Put(':uid')
-  @ApiOperation({ summary: 'Update user information (admin)' })
-  @ApiParam({ name: 'uid', description: 'User unique identifier' })
+  @ApiOperation({
+    summary: 'Update user (admin)',
+    description: 'Admin endpoint to update any user.',
+  })
+  @ApiParam({ name: 'uid', description: 'Firebase UID' })
   @ApiBody({ type: UpdateUserDto })
-  @ApiResponse({ status: 200, description: 'User updated successfully' })
+  @ApiResponse({ status: 200, description: 'User updated' })
   @ApiResponse({ status: 404, description: 'User not found' })
   async updateUser(@Param('uid') uid: string, @Body() updateUserDto: UpdateUserDto): Promise<User> {
     return this.usersService.updateUser(uid, updateUserDto);
   }
 
-  /**
-   * Delete current user's account
-   */
   @Delete('me')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete current user account' })
-  @ApiResponse({ status: 204, description: 'User deleted successfully' })
+  @ApiOperation({
+    summary: 'Delete my account',
+    description: 'Permanently deletes authenticated user account. This action cannot be undone.',
+  })
+  @ApiResponse({ status: 204, description: 'Account deleted' })
   @ApiResponse({ status: 404, description: 'User not found' })
   async deleteCurrentUser(@CurrentUser('uid') uid: string): Promise<void> {
     return this.usersService.deleteUser(uid);
   }
 
-  /**
-   * Delete user (admin endpoint)
-   */
   @Delete(':uid')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete user account (admin)' })
-  @ApiParam({ name: 'uid', description: 'User unique identifier' })
-  @ApiResponse({ status: 204, description: 'User deleted successfully' })
+  @ApiOperation({
+    summary: 'Delete user (admin)',
+    description: 'Admin endpoint to delete any user.',
+  })
+  @ApiParam({ name: 'uid', description: 'Firebase UID' })
+  @ApiResponse({ status: 204, description: 'User deleted' })
   @ApiResponse({ status: 404, description: 'User not found' })
   async deleteUser(@Param('uid') uid: string): Promise<void> {
     return this.usersService.deleteUser(uid);
   }
 
-  /**
-   * Add favorite item to current user
-   */
   @Post('me/favorites')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Add a movie/show to current user favorites' })
-  @ApiResponse({ status: 201, description: 'Favorite added successfully' })
+  @ApiOperation({
+    summary: 'Add movie/show to my favorites',
+    description: 'Adds a movie or TV show to authenticated user favorites list.',
+  })
+  @ApiBody({
+    type: AddFavoriteDto,
+    examples: {
+      movie: {
+        summary: 'Add a movie',
+        value: {
+          tmdbId: 550,
+          title: 'Fight Club',
+          mediaType: 'movie',
+          posterPath: '/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg',
+        },
+      },
+      tv: {
+        summary: 'Add a TV show',
+        value: {
+          tmdbId: 1396,
+          title: 'Breaking Bad',
+          mediaType: 'tv',
+          posterPath: '/ggFHVNu6YYI5L9pCfOacjizRGt.jpg',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Added to favorites' })
+  @ApiResponse({ status: 409, description: 'Already in favorites' })
   @ApiResponse({ status: 404, description: 'User not found' })
   async addFavoriteToCurrentUser(
     @CurrentUser('uid') uid: string,
-    @Body() favoriteItem: FavoriteItem,
+    @Body() addFavoriteDto: AddFavoriteDto,
   ): Promise<void> {
+    const favoriteItem: FavoriteItem = {
+      tmdbId: addFavoriteDto.tmdbId,
+      title: addFavoriteDto.title,
+      mediaType: addFavoriteDto.mediaType as 'movie' | 'tv',
+      posterPath: addFavoriteDto.posterPath,
+      addedAt: new Date(),
+    };
     return this.usersService.addFavorite(uid, favoriteItem);
   }
 
@@ -134,18 +263,33 @@ export class UsersController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Add a movie/show to user favorites (admin)' })
   @ApiParam({ name: 'uid', description: 'User unique identifier' })
+  @ApiBody({ type: AddFavoriteDto })
   @ApiResponse({ status: 201, description: 'Favorite added successfully' })
   @ApiResponse({ status: 404, description: 'User not found' })
-  async addFavorite(@Param('uid') uid: string, @Body() favoriteItem: FavoriteItem): Promise<void> {
+  @ApiResponse({ status: 409, description: 'Item already in favorites' })
+  async addFavorite(
+    @Param('uid') uid: string,
+    @Body() addFavoriteDto: AddFavoriteDto,
+  ): Promise<void> {
+    const favoriteItem: FavoriteItem = {
+      tmdbId: addFavoriteDto.tmdbId,
+      title: addFavoriteDto.title,
+      mediaType: addFavoriteDto.mediaType as 'movie' | 'tv',
+      posterPath: addFavoriteDto.posterPath,
+      addedAt: new Date(),
+    };
     return this.usersService.addFavorite(uid, favoriteItem);
   }
 
-  /**
-   * Remove favorite item from current user
-   */
   @Delete('me/favorites/:tmdbId/:mediaType')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remove a movie/show from current user favorites' })
+  @ApiOperation({
+    summary: 'Remove from my favorites',
+    description: 'Removes a movie or TV show from authenticated user favorites.',
+  })
+  @ApiParam({ name: 'tmdbId', description: 'TMDB ID', example: 550 })
+  @ApiParam({ name: 'mediaType', description: 'Media type', enum: ['movie', 'tv'] })
+  @ApiResponse({ status: 204, description: 'Removed from favorites' })
   async removeFavoriteFromCurrentUser(
     @CurrentUser('uid') uid: string,
     @Param('tmdbId', ParseIntPipe) tmdbId: number,
@@ -154,12 +298,13 @@ export class UsersController {
     return this.usersService.removeFavorite(uid, tmdbId, mediaType);
   }
 
-  /**
-   * Remove favorite item (admin endpoint)
-   */
   @Delete(':uid/favorites/:tmdbId/:mediaType')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remove a movie/show from user favorites (admin)' })
+  @ApiOperation({ summary: 'Remove from favorites (admin)' })
+  @ApiParam({ name: 'uid', description: 'Firebase UID' })
+  @ApiParam({ name: 'tmdbId', description: 'TMDB ID' })
+  @ApiParam({ name: 'mediaType', enum: ['movie', 'tv'] })
+  @ApiResponse({ status: 204, description: 'Removed' })
   async removeFavorite(
     @Param('uid') uid: string,
     @Param('tmdbId', ParseIntPipe) tmdbId: number,
@@ -168,13 +313,17 @@ export class UsersController {
     return this.usersService.removeFavorite(uid, tmdbId, mediaType);
   }
 
-  /**
-   * Follow a user (current user follows target)
-   */
+  // ==================== SOCIAL (FOLLOW/UNFOLLOW) ====================
+
   @Post('follow/:targetUid')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Follow a user' })
+  @ApiOperation({
+    summary: 'Follow user',
+    description: 'Authenticated user follows another user. Updates follower/following counts.',
+  })
   @ApiParam({ name: 'targetUid', description: 'User to follow' })
+  @ApiResponse({ status: 201, description: 'Now following' })
+  @ApiResponse({ status: 409, description: 'Cannot follow yourself' })
   async followUserAsCurrent(
     @CurrentUser('uid') followerUid: string,
     @Param('targetUid') followedUid: string,
@@ -182,13 +331,14 @@ export class UsersController {
     return this.usersService.followUser(followerUid, followedUid);
   }
 
-  /**
-   * Unfollow a user (current user unfollows target)
-   */
   @Delete('follow/:targetUid')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Unfollow a user' })
+  @ApiOperation({
+    summary: 'Unfollow user',
+    description: 'Authenticated user unfollows another user.',
+  })
   @ApiParam({ name: 'targetUid', description: 'User to unfollow' })
+  @ApiResponse({ status: 204, description: 'Unfollowed' })
   async unfollowUserAsCurrent(
     @CurrentUser('uid') followerUid: string,
     @Param('targetUid') followedUid: string,
@@ -196,12 +346,11 @@ export class UsersController {
     return this.usersService.unfollowUser(followerUid, followedUid);
   }
 
-  /**
-   * Follow a user (admin endpoint)
-   */
   @Post(':uid/follow/:targetUid')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Follow a user (admin)' })
+  @ApiOperation({ summary: 'Follow user (admin)' })
+  @ApiParam({ name: 'uid', description: 'Follower UID' })
+  @ApiParam({ name: 'targetUid', description: 'User to follow' })
   async followUser(
     @Param('uid') followerUid: string,
     @Param('targetUid') followedUid: string,
@@ -209,12 +358,11 @@ export class UsersController {
     return this.usersService.followUser(followerUid, followedUid);
   }
 
-  /**
-   * Unfollow a user (admin endpoint)
-   */
   @Delete(':uid/follow/:targetUid')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Unfollow a user (admin)' })
+  @ApiOperation({ summary: 'Unfollow user (admin)' })
+  @ApiParam({ name: 'uid', description: 'Follower UID' })
+  @ApiParam({ name: 'targetUid', description: 'User to unfollow' })
   async unfollowUser(
     @Param('uid') followerUid: string,
     @Param('targetUid') followedUid: string,
@@ -222,11 +370,29 @@ export class UsersController {
     return this.usersService.unfollowUser(followerUid, followedUid);
   }
 
-  /**
-   * Get current user's followers
-   */
+  // ==================== FOLLOWERS/FOLLOWING ====================
+
   @Get('me/followers')
-  @ApiOperation({ summary: "Get current user's followers" })
+  @ApiOperation({
+    summary: 'Get my followers',
+    description: 'Returns list of users following me with their basic profile information.',
+  })
+  @ApiQuery({ name: 'limit', required: false, example: 50 })
+  @ApiResponse({
+    status: 200,
+    description: 'Followers list with user information',
+    schema: {
+      example: [
+        {
+          uid: 'M1CVo2OdFGXA9nyLCvRnGF5rBg13',
+          displayName: 'John Doe',
+          photoURL: 'https://lh3.googleusercontent.com/a/ACg8ocK...',
+          bio: 'Movie enthusiast 🍿',
+          followedAt: '2024-11-03T19:30:00Z',
+        },
+      ],
+    },
+  })
   async getCurrentUserFollowers(
     @CurrentUser('uid') uid: string,
     @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
@@ -234,11 +400,27 @@ export class UsersController {
     return this.usersService.getFollowers(uid, limit);
   }
 
-  /**
-   * Get current user's following
-   */
   @Get('me/following')
-  @ApiOperation({ summary: "Get current user's following" })
+  @ApiOperation({
+    summary: 'Get who I follow',
+    description: 'Returns list of users I am following with their basic profile information.',
+  })
+  @ApiQuery({ name: 'limit', required: false, example: 50 })
+  @ApiResponse({
+    status: 200,
+    description: 'Following list with user information',
+    schema: {
+      example: [
+        {
+          uid: 'N2DWp3PeFHYB0ozMDwSoHG6sChg24',
+          displayName: 'Jane Smith',
+          photoURL: 'https://lh3.googleusercontent.com/a/ACg8ocL...',
+          bio: 'Sci-Fi lover 🚀',
+          followedAt: '2024-11-02T15:20:00Z',
+        },
+      ],
+    },
+  })
   async getCurrentUserFollowing(
     @CurrentUser('uid') uid: string,
     @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
@@ -246,11 +428,13 @@ export class UsersController {
     return this.usersService.getFollowing(uid, limit);
   }
 
-  /**
-   * Check if current user follows target user
-   */
   @Get('me/following/:targetUid')
-  @ApiOperation({ summary: 'Check if current user follows target user' })
+  @ApiOperation({
+    summary: 'Check if I follow user',
+    description: 'Returns whether authenticated user follows target user.',
+  })
+  @ApiParam({ name: 'targetUid', description: 'User UID' })
+  @ApiResponse({ status: 200, schema: { example: { isFollowing: true } } })
   async isCurrentUserFollowing(
     @CurrentUser('uid') followerUid: string,
     @Param('targetUid') followedUid: string,
@@ -259,11 +443,18 @@ export class UsersController {
     return { isFollowing };
   }
 
-  /**
-   * Get user's followers
-   */
   @Get(':uid/followers')
-  @ApiOperation({ summary: "Get user's followers" })
+  @ApiOperation({
+    summary: 'Get user followers',
+    description:
+      'Returns list of users following the specified user with their profile information.',
+  })
+  @ApiParam({ name: 'uid', description: 'User UID' })
+  @ApiQuery({ name: 'limit', required: false, example: 50 })
+  @ApiResponse({
+    status: 200,
+    description: 'Followers list with user information',
+  })
   async getFollowers(
     @Param('uid') uid: string,
     @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
@@ -271,11 +462,18 @@ export class UsersController {
     return this.usersService.getFollowers(uid, limit);
   }
 
-  /**
-   * Get user's following
-   */
   @Get(':uid/following')
-  @ApiOperation({ summary: "Get user's following" })
+  @ApiOperation({
+    summary: 'Get user following',
+    description:
+      'Returns list of users that the specified user is following with their profile information.',
+  })
+  @ApiParam({ name: 'uid', description: 'User UID' })
+  @ApiQuery({ name: 'limit', required: false, example: 50 })
+  @ApiResponse({
+    status: 200,
+    description: 'Following list with user information',
+  })
   async getFollowing(
     @Param('uid') uid: string,
     @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
@@ -283,11 +481,10 @@ export class UsersController {
     return this.usersService.getFollowing(uid, limit);
   }
 
-  /**
-   * Check if user A follows user B
-   */
   @Get(':uid/following/:targetUid')
   @ApiOperation({ summary: 'Check if user A follows user B' })
+  @ApiParam({ name: 'uid', description: 'Follower UID' })
+  @ApiParam({ name: 'targetUid', description: 'Followed UID' })
   async isFollowing(
     @Param('uid') followerUid: string,
     @Param('targetUid') followedUid: string,
@@ -296,14 +493,16 @@ export class UsersController {
     return { isFollowing };
   }
 
-  /**
-   * Search users
-   */
+  // ==================== SEARCH ====================
+
   @Get()
-  @ApiOperation({ summary: 'Search users by display name' })
-  @ApiQuery({ name: 'q', description: 'Search query string' })
-  @ApiQuery({ name: 'limit', description: 'Maximum number of results', required: false })
-  @ApiResponse({ status: 200, description: 'Search results retrieved successfully' })
+  @ApiOperation({
+    summary: 'Search users',
+    description: 'Search users by display name. Returns empty array if query is empty.',
+  })
+  @ApiQuery({ name: 'q', description: 'Search query', example: 'John' })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiResponse({ status: 200, description: 'Search results' })
   async searchUsers(
     @Query('q') query: string,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,

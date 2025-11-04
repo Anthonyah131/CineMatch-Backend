@@ -13,6 +13,7 @@ export interface ListCover extends MediaInfo {
  * Main List document interface
  */
 export interface List extends BaseDocument {
+  id?: string;
   ownerId: string;
   title: string;
   description: string;
@@ -25,6 +26,7 @@ export interface List extends BaseDocument {
  * List item document interface (subcollection of lists)
  */
 export interface ListItem extends MediaInfo {
+  id?: string;
   addedAt: Timestamp;
   notes: string;
   // Inherits tmdbId, mediaType, title, posterPath from MediaInfo

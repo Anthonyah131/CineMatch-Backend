@@ -31,22 +31,13 @@ async function bootstrap() {
     .setTitle('CineMatch API')
     .setDescription('Backend API for CineMatch - A movie and TV show matching app')
     .setVersion('1.0')
-    .addBearerAuth(
-      {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-        name: 'JWT',
-        description: 'Enter JWT token',
-        in: 'header',
-      },
-      'JWT-auth',
-    )
+    .addBearerAuth()
     .addTag('auth', 'Authentication - Register and login endpoints (no token required)')
     .addTag('users', 'User management operations (requires JWT token)')
     .addTag('lists', 'User lists and collections (requires JWT token)')
-    .addTag('media', 'Movies and TV shows cache management (requires JWT token)')
     .addTag('matches', 'Content matching system (requires JWT token)')
+    .addTag('media-cache', 'Movies and TV shows cache management (requires JWT token)')
+    .addTag('media-logs', 'User media logs (requires JWT token)')
     .addTag('tmdb', 'TMDb API integration for movies and TV shows (requires JWT token)')
     .addTag('hello', 'Health check and testing endpoints (no token required)')
     .build();
