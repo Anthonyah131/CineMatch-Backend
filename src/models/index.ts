@@ -11,9 +11,12 @@ export * from '../modules/lists/list.model';
 export * from '../modules/media-cache/media-cache.model';
 export * from '../modules/media-logs/media-log.model';
 
-// Game models
-export * from '../modules/matches/match.model';
-export * from '../modules/matches/movie-quote.model';
+// Matches models
+export * from '../modules/matches/user-match.model';
+
+// Game models (future feature)
+export * from '../modules/game/match.model';
+export * from '../modules/game/movie-quote.model';
 
 // Social models
 export * from '../modules/chats/chat.model';

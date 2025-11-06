@@ -9,6 +9,8 @@ import { MediaCacheModule } from './modules/media-cache/media-cache.module';
 import { MediaLogsModule } from './modules/media-logs/media-logs.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { MatchesModule } from './modules/matches/matches.module';
+import { ForumsModule } from './modules/forums/forums.module';
+import { ChatsModule } from './modules/chats/chats.module';
 import { TmdbModule } from './modules/tmdb/tmdb.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 
@@ -24,6 +26,8 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
     MediaCacheModule,
     MediaLogsModule,
     MatchesModule,
+    ForumsModule,
+    ChatsModule,
     TmdbModule,
   ],
   controllers: [HelloController],

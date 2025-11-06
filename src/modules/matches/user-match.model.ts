@@ -1,37 +1,48 @@
 import { Timestamp } from 'firebase-admin/firestore';
 
 /**
- * User match interface - when two users like the same movie
+ * Potential match between two users based on a movie they both watched recently
+ * This is computed on-the-fly, not stored in database
  */
-export interface UserMatch {
-  /** Document ID */
-  id?: string;
-  /** Array of the two user UIDs who matched */
-  users: [string, string];
-  /** TMDB ID of the movie that caused the match */
+export interface PotentialMatch {
+  /** The other user's UID */
+  userId: string;
+  /** User's display name */
+  displayName?: string;
+  /** User's photo URL */
+  photoURL?: string;
+  /** TMDB ID of the movie that both users watched */
   movieId: number;
-  /** When the match was created */
-  matchedAt: Timestamp;
-  /** Whether the match is still active */
-  isActive: boolean;
-  /** ID of the conversation/chat if started */
-  conversationId?: string;
-  /** When the match was deleted/unmatched */
-  deletedAt?: Timestamp;
+  /** Movie title */
+  movieTitle?: string;
+  /** Movie poster path */
+  moviePosterPath?: string;
+  /** When the other user watched it */
+  theirWatchedAt: Timestamp;
+  /** When the current user watched it */
+  myWatchedAt: Timestamp;
+  /** How many days ago they watched it (for sorting/filtering) */
+  daysAgo: number;
 }
 
 /**
- * User like/swipe interface
+ * Response interface for getting potential matches
  */
-export interface UserSwipe {
-  /** Document ID */
-  id?: string;
-  /** User who performed the swipe */
-  userId: string;
-  /** TMDB ID of the movie */
-  movieId: number;
-  /** Whether user liked (true) or passed (false) */
-  liked: boolean;
-  /** When the swipe happened */
-  swipedAt: Timestamp;
+export interface MatchesResponse {
+  /** Array of potential matches */
+  matches: PotentialMatch[];
+  /** Total number of matches found */
+  total: number;
+}
+
+/**
+ * Query parameters for filtering matches
+ */
+export interface MatchFilters {
+  /** Maximum days ago to consider a viewing as "recent" (default: 30) */
+  maxDaysAgo?: number;
+  /** Minimum rating the other user gave (1-5, optional) */
+  minRating?: number;
+  /** Limit number of results */
+  limit?: number;
 }

@@ -1,20 +1,15 @@
-import { Controller, Get, Post, Delete, Param, Body } from '@nestjs/common';
+import { Controller, Get, Query, Param } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiParam,
-  ApiBody,
+  ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { MatchesService } from './matches.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import type { UserMatch, UserSwipe } from './user-match.model';
-
-export class SwipeDto {
-  movieId: number;
-  liked: boolean;
-}
+import type { MatchesResponse, PotentialMatch, MatchFilters } from './user-match.model';
 
 @ApiTags('matches')
 @ApiBearerAuth()
@@ -22,64 +17,78 @@ export class SwipeDto {
 export class MatchesController {
   constructor(private readonly matchesService: MatchesService) {}
 
-  @Get('my-matches')
-  @ApiOperation({ summary: 'Get all matches for current user' })
-  @ApiResponse({ status: 200, description: 'User matches retrieved successfully' })
-  async getMyMatches(@CurrentUser('uid') userId: string): Promise<UserMatch[]> {
-    return this.matchesService.getUserMatches(userId);
-  }
-
-  @Get('user/:userId')
-  @ApiOperation({ summary: 'Get all matches for a specific user' })
-  @ApiParam({ name: 'userId', description: 'User ID' })
-  @ApiResponse({ status: 200, description: 'User matches retrieved successfully' })
-  async getUserMatches(@Param('userId') userId: string): Promise<UserMatch[]> {
-    return this.matchesService.getUserMatches(userId);
-  }
-
-  @Get(':matchId')
-  @ApiOperation({ summary: 'Get match details by ID' })
-  @ApiParam({ name: 'matchId', description: 'Match ID' })
-  @ApiResponse({ status: 200, description: 'Match details retrieved successfully' })
-  async getMatchById(@Param('matchId') matchId: string): Promise<UserMatch | null> {
-    return this.matchesService.getMatchById(matchId);
-  }
-
-  @Post('swipe')
-  @ApiOperation({ summary: 'Record current user swipe (like/pass) on a movie' })
-  @ApiBody({ type: SwipeDto })
-  @ApiResponse({ status: 201, description: 'Swipe recorded successfully' })
-  async recordSwipe(
+  @Get()
+  @ApiOperation({
+    summary: 'Get potential matches for current user',
+    description:
+      'Find users who watched the same movies recently as the current user. Does not store matches in database, computed on-the-fly.',
+  })
+  @ApiQuery({
+    name: 'maxDaysAgo',
+    required: false,
+    type: Number,
+    description: 'Maximum days ago to consider a viewing as recent (default: 30)',
+  })
+  @ApiQuery({
+    name: 'minRating',
+    required: false,
+    type: Number,
+    description: 'Minimum rating the other user gave (1-5, optional)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Maximum number of matches to return (default: 50)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Potential matches found successfully',
+  })
+  async getPotentialMatches(
     @CurrentUser('uid') userId: string,
-    @Body() swipeDto: SwipeDto,
-  ): Promise<UserSwipe> {
-    return this.matchesService.recordSwipe(userId, swipeDto.movieId, swipeDto.liked);
+    @Query('maxDaysAgo') maxDaysAgo?: string,
+    @Query('minRating') minRating?: string,
+    @Query('limit') limit?: string,
+  ): Promise<MatchesResponse> {
+    const filters: MatchFilters = {
+      maxDaysAgo: maxDaysAgo ? parseInt(maxDaysAgo) : undefined,
+      minRating: minRating ? parseFloat(minRating) : undefined,
+      limit: limit ? parseInt(limit) : undefined,
+    };
+
+    return this.matchesService.findPotentialMatches(userId, filters);
   }
 
-  @Post('check-mutual/:targetUserId/:movieId')
-  @ApiOperation({ summary: 'Check if current user and another user have mutual like for a movie' })
-  @ApiParam({ name: 'targetUserId', description: 'Target user ID to check mutual like with' })
-  @ApiParam({ name: 'movieId', description: 'Movie TMDB ID' })
-  @ApiResponse({ status: 200, description: 'Mutual like status checked' })
-  async checkMutualLike(
-    @CurrentUser('uid') currentUserId: string,
-    @Param('targetUserId') targetUserId: string,
+  @Get('movie/:movieId')
+  @ApiOperation({
+    summary: 'Get matches for a specific movie',
+    description: 'Find all users who watched the same movie recently as the current user',
+  })
+  @ApiParam({
+    name: 'movieId',
+    description: 'TMDB movie ID',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'maxDaysAgo',
+    required: false,
+    type: Number,
+    description: 'Maximum days ago to consider (default: 30)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Users who watched this movie retrieved successfully',
+  })
+  async getMatchesForMovie(
+    @CurrentUser('uid') userId: string,
     @Param('movieId') movieId: string,
-  ): Promise<{ hasMutualLike: boolean }> {
-    const hasMutualLike = await this.matchesService.checkMutualLike(
-      currentUserId,
-      targetUserId,
+    @Query('maxDaysAgo') maxDaysAgo?: string,
+  ): Promise<PotentialMatch[]> {
+    return this.matchesService.getMatchesForMovie(
+      userId,
       parseInt(movieId),
+      maxDaysAgo ? parseInt(maxDaysAgo) : undefined,
     );
-    return { hasMutualLike };
-  }
-
-  @Delete(':matchId')
-  @ApiOperation({ summary: 'Delete/unmatch a match' })
-  @ApiParam({ name: 'matchId', description: 'Match ID to delete' })
-  @ApiResponse({ status: 200, description: 'Match deleted successfully' })
-  async deleteMatch(@Param('matchId') matchId: string): Promise<{ success: boolean }> {
-    await this.matchesService.deleteMatch(matchId);
-    return { success: true };
   }
 }

@@ -21,31 +21,6 @@ export interface Message {
 }
 
 /**
- * DTO for creating a new chat
- */
-export interface CreateChatDto {
-  members: string[];
-  initialMessage?: string;
-}
-
-/**
- * DTO for sending a message
- */
-export interface SendMessageDto {
-  senderId: string;
-  text: string;
-  type?: MessageType;
-}
-
-/**
- * DTO for adding a reaction to a message
- */
-export interface AddReactionDto {
-  userId: string;
-  emoji: string;
-}
-
-/**
  * Chat summary for chat list
  */
 export interface ChatSummary {

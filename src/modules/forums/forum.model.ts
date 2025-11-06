@@ -30,46 +30,6 @@ export interface Comment {
 }
 
 /**
- * DTO for creating a new forum
- */
-export interface CreateForumDto {
-  ownerId: string;
-  title: string;
-  description: string;
-}
-
-/**
- * DTO for updating a forum
- */
-export interface UpdateForumDto {
-  title?: string;
-  description?: string;
-}
-
-/**
- * DTO for creating a new post
- */
-export interface CreatePostDto {
-  authorId: string;
-  content: string;
-}
-
-/**
- * DTO for updating a post
- */
-export interface UpdatePostDto {
-  content?: string;
-}
-
-/**
- * DTO for creating a new comment
- */
-export interface CreateCommentDto {
-  authorId: string;
-  content: string;
-}
-
-/**
  * Post with author information
  */
 export interface PostWithAuthor extends Post {
