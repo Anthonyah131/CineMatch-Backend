@@ -95,7 +95,9 @@ export class MediaLogsService {
       userId,
       tmdbId: logData.tmdbId,
       mediaType: logData.mediaType,
-      watchedAt: Timestamp.now(),
+      watchedAt: logData.watchedAt
+        ? new Timestamp(logData.watchedAt.seconds, logData.watchedAt.nanoseconds)
+        : Timestamp.now(),
       hadSeenBefore: logData.hadSeenBefore,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
@@ -209,13 +211,13 @@ export class MediaLogsService {
   /**
    * Update a media log with owner verification
    *
-   * Allows updating rating, review, reviewLang, and notes.
-   * Core log data (userId, tmdbId, mediaType, watchedAt) cannot be changed.
+   * Allows updating rating, review, reviewLang, notes, and watchedAt.
+   * Core log data (userId, tmdbId, mediaType) cannot be changed.
    * Automatically updates the updatedAt timestamp.
    *
    * @param logId - Firestore document ID of the log
    * @param userId - User ID (must match log owner)
-   * @param updateData - Partial update data (rating, review, notes)
+   * @param updateData - Partial update data (rating, review, notes, watchedAt)
    * @returns Updated log with new data
    * @throws NotFoundException if log doesn't exist
    * @throws ForbiddenException if user doesn't own the log
@@ -240,6 +242,12 @@ export class MediaLogsService {
     }
     if (updateData.notes !== undefined) {
       updates.notes = updateData.notes;
+    }
+    if (updateData.watchedAt !== undefined) {
+      updates.watchedAt = new Timestamp(
+        updateData.watchedAt.seconds,
+        updateData.watchedAt.nanoseconds,
+      );
     }
 
     // Check if there are any fields to update

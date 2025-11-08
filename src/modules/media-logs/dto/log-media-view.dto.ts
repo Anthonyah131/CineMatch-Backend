@@ -45,6 +45,19 @@ export class LogMediaViewDto {
   mediaType: 'movie' | 'tv';
 
   @ApiProperty({
+    description: 'Fecha y hora en que se vio el contenido',
+    example: {
+      seconds: 1625257200,
+      nanoseconds: 0,
+    },
+  })
+  @IsOptional()
+  watchedAt?: {
+    seconds: number;
+    nanoseconds: number;
+  };
+
+  @ApiProperty({
     description: 'Si el usuario ya había visto este contenido antes',
     example: false,
   })

@@ -38,6 +38,19 @@ export class UpdateMediaLogDto {
   review?: string;
 
   @ApiPropertyOptional({
+    description: 'Fecha y hora en que se vio el contenido',
+    example: {
+      seconds: 1625257200,
+      nanoseconds: 0,
+    },
+  })
+  @IsOptional()
+  watchedAt?: {
+    seconds: number;
+    nanoseconds: number;
+  };
+
+  @ApiPropertyOptional({
     description: 'Código de idioma de la reseña actualizada (ISO 639-1)',
     example: 'es',
     examples: ['es', 'en', 'fr', 'pt'],
