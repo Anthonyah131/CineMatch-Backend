@@ -1,14 +1,4 @@
-import {
-  IsInt,
-  Min,
-  IsIn,
-  IsBoolean,
-  IsNumber,
-  IsOptional,
-  IsString,
-  Max,
-  MinLength,
-} from 'class-validator';
+import { IsInt, Min, IsIn, IsBoolean, IsNumber, IsOptional, IsString, Max } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
@@ -80,11 +70,9 @@ export class LogMediaViewDto {
   @ApiPropertyOptional({
     description: 'Reseña escrita por el usuario sobre el contenido',
     example: 'Increíble película con giros inesperados y actuaciones espectaculares!',
-    minLength: 1,
   })
   @IsOptional()
   @IsString({ message: 'Review debe ser texto' })
-  @MinLength(1, { message: 'Review no puede estar vacía' })
   review?: string;
 
   @ApiPropertyOptional({

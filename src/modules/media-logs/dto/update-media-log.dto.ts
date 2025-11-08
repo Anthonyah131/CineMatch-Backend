@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, Max, Min, MinLength } from 'class-validator';
+import { IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
@@ -30,11 +30,9 @@ export class UpdateMediaLogDto {
   @ApiPropertyOptional({
     description: 'Reseña actualizada sobre el contenido',
     example: 'Después de verla de nuevo, definitivamente es una obra maestra absoluta!',
-    minLength: 1,
   })
   @IsOptional()
   @IsString({ message: 'Review debe ser texto' })
-  @MinLength(1, { message: 'Review no puede estar vacía' })
   review?: string;
 
   @ApiPropertyOptional({
