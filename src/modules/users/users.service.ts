@@ -4,6 +4,7 @@ import { User, FavoriteItem } from './user.model';
 import { Follower, Following } from './user-relations.model';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { MediaLogsService } from '../media-logs/media-logs.service';
 
 // Helper function to extract error message
 function getErrorMessage(error: unknown): string {
@@ -15,7 +16,10 @@ function getErrorMessage(error: unknown): string {
 
 @Injectable()
 export class UsersService {
-  constructor(@Inject('FIRESTORE') private firestore: Firestore) {}
+  constructor(
+    @Inject('FIRESTORE') private firestore: Firestore,
+    private readonly mediaLogsService: MediaLogsService,
+  ) {}
 
   private get collection() {
     return this.firestore.collection('users');
@@ -305,6 +309,109 @@ export class UsersService {
         throw error;
       }
       throw new Error(`Failed to get user profile: ${getErrorMessage(error)}`);
+    }
+  }
+
+  /**
+   * Get complete user profile for visiting another user's profile
+   * Includes user info, favorites, stats, recent logs, and recent reviews
+   */
+  async getCompleteUserProfile(uid: string): Promise<{
+    user: Omit<User, 'settings' | 'authProviders' | 'emailVerified'>;
+    stats: {
+      totalFavorites: number;
+      followersCount: number;
+      followingCount: number;
+      totalMoviesWatched: number;
+      totalTvShowsWatched: number;
+      totalViews: number;
+      totalReviews: number;
+      averageRating: number;
+    };
+    recentFavorites: FavoriteItem[];
+    recentLogs: any[];
+    recentReviews: any[];
+  }> {
+    try {
+      const user = await this.getUserById(uid);
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      // Get recent favorites (last 10)
+      const recentFavorites = user.favorites
+        .sort((a, b) => {
+          const dateA =
+            a.addedAt instanceof Date ? a.addedAt.getTime() : new Date(a.addedAt).getTime();
+          const dateB =
+            b.addedAt instanceof Date ? b.addedAt.getTime() : new Date(b.addedAt).getTime();
+          return dateB - dateA;
+        })
+        .slice(0, 10);
+
+      // Get media logs stats and recent activity
+      const [mediaStats, recentLogs] = await Promise.all([
+        this.mediaLogsService.getUserStats(uid),
+        this.mediaLogsService.getUserLogs(uid, 10),
+      ]);
+
+      // Extract recent reviews (logs with review content)
+      const recentReviews = recentLogs
+        .filter((log) => log.review && log.review.trim() !== '')
+        .slice(0, 10)
+        .map((log) => ({
+          id: log.id,
+          tmdbId: log.tmdbId,
+          mediaType: log.mediaType,
+          rating: log.rating,
+          review: log.review,
+          reviewLang: log.reviewLang,
+          watchedAt: log.watchedAt,
+          createdAt: log.createdAt,
+        }));
+
+      // Return complete profile data
+      return {
+        user: {
+          displayName: user.displayName,
+          email: user.email,
+          photoURL: user.photoURL,
+          bio: user.bio,
+          birthdate: user.birthdate,
+          favorites: user.favorites,
+          followersCount: user.followersCount,
+          followingCount: user.followingCount,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+        },
+        stats: {
+          totalFavorites: user.favorites.length,
+          followersCount: user.followersCount,
+          followingCount: user.followingCount,
+          totalMoviesWatched: mediaStats.totalMoviesWatched,
+          totalTvShowsWatched: mediaStats.totalTvShowsWatched,
+          totalViews: mediaStats.totalViews,
+          totalReviews: mediaStats.totalReviews,
+          averageRating: mediaStats.averageRating,
+        },
+        recentFavorites,
+        recentLogs: recentLogs.map((log) => ({
+          id: log.id,
+          tmdbId: log.tmdbId,
+          mediaType: log.mediaType,
+          rating: log.rating,
+          review: log.review ? log.review.substring(0, 100) + '...' : null, // Preview only
+          watchedAt: log.watchedAt,
+          hadSeenBefore: log.hadSeenBefore,
+        })),
+        recentReviews,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new Error(`Failed to get complete user profile: ${getErrorMessage(error)}`);
     }
   }
 

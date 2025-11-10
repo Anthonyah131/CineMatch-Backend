@@ -104,6 +104,95 @@ export class UsersController {
     return this.usersService.getUserProfile(uid);
   }
 
+  @Get(':uid/complete-profile')
+  @ApiOperation({
+    summary: 'Get complete user profile for visiting',
+    description:
+      "Retrieves comprehensive profile data for visiting another user's profile page. " +
+      'Includes user info, complete stats, recent favorites, latest 10 viewing logs, and latest 10 reviews. ' +
+      "Perfect for displaying another user's complete profile.",
+  })
+  @ApiParam({ name: 'uid', description: 'Firebase UID of the user to visit' })
+  @ApiResponse({
+    status: 200,
+    description: 'Complete profile retrieved successfully',
+    schema: {
+      example: {
+        user: {
+          displayName: 'John Doe',
+          email: 'john@example.com',
+          photoURL: 'https://...',
+          bio: 'Movie enthusiast 🍿',
+          birthdate: '1990-01-15',
+          followersCount: 150,
+          followingCount: 85,
+          createdAt: '2024-01-15T10:30:00Z',
+        },
+        stats: {
+          totalFavorites: 42,
+          followersCount: 150,
+          followingCount: 85,
+          totalMoviesWatched: 127,
+          totalTvShowsWatched: 23,
+          totalViews: 203,
+          totalReviews: 45,
+          averageRating: 4.2,
+        },
+        recentFavorites: [
+          {
+            tmdbId: 550,
+            title: 'Fight Club',
+            mediaType: 'movie',
+            posterPath: '/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg',
+            addedAt: '2024-11-03T19:30:00Z',
+          },
+        ],
+        recentLogs: [
+          {
+            id: 'log123',
+            tmdbId: 157336,
+            mediaType: 'movie',
+            rating: 5,
+            review: 'Incredible sci-fi masterpiece with stunning visuals...',
+            watchedAt: '2024-11-05T21:00:00Z',
+            hadSeenBefore: false,
+          },
+        ],
+        recentReviews: [
+          {
+            id: 'log123',
+            tmdbId: 157336,
+            mediaType: 'movie',
+            rating: 5,
+            review: 'Incredible sci-fi masterpiece with stunning visuals and emotional depth.',
+            reviewLang: 'en',
+            watchedAt: '2024-11-05T21:00:00Z',
+            createdAt: '2024-11-05T21:15:00Z',
+          },
+        ],
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async getCompleteUserProfile(@Param('uid') uid: string): Promise<{
+    user: Omit<User, 'settings' | 'authProviders' | 'emailVerified'>;
+    stats: {
+      totalFavorites: number;
+      followersCount: number;
+      followingCount: number;
+      totalMoviesWatched: number;
+      totalTvShowsWatched: number;
+      totalViews: number;
+      totalReviews: number;
+      averageRating: number;
+    };
+    recentFavorites: FavoriteItem[];
+    recentLogs: any[];
+    recentReviews: any[];
+  }> {
+    return this.usersService.getCompleteUserProfile(uid);
+  }
+
   // ==================== FAVORITES ====================
 
   @Get('me/favorites')
