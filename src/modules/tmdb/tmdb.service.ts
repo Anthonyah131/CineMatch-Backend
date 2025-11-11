@@ -616,4 +616,48 @@ export class TmdbService {
       );
     }
   }
+
+  /**
+   * Get random movie posters from top rated movies for login screen
+   * Returns 10 random movies from TMDb's top rated movies with poster images
+   */
+  async getRandomTopRatedPosters(): Promise<
+    Array<{
+      tmdbId: number;
+      title: string;
+      posterPath: string;
+      voteAverage: number;
+      voteCount: number;
+    }>
+  > {
+    try {
+      // Get multiple pages of top rated movies from TMDb to have more variety
+      const page1 = await this.getTopRatedMovies(1);
+      const page2 = await this.getTopRatedMovies(2);
+      const page3 = await this.getTopRatedMovies(3);
+
+      // Combine all movies and filter only those with posters
+      const allMovies = [...page1.results, ...page2.results, ...page3.results].filter(
+        (movie) => movie.poster_path && movie.title,
+      );
+
+      // Map to our response format
+      const moviesForPosters = allMovies.map((movie) => ({
+        tmdbId: movie.id,
+        title: movie.title,
+        posterPath: movie.poster_path,
+        voteAverage: movie.vote_average,
+        voteCount: movie.vote_count,
+      }));
+
+      // Shuffle and return 10 random ones
+      const shuffled = moviesForPosters.sort(() => Math.random() - 0.5);
+      return shuffled.slice(0, 10);
+    } catch (error: unknown) {
+      throw new HttpException(
+        `Error al obtener posters de películas top rated: ${this.getErrorMessage(error)}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
 }

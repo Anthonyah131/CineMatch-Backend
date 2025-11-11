@@ -7,6 +7,7 @@ import {
   ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { Public } from '../auth/decorators/public.decorator';
 import { TmdbService } from './tmdb.service';
 
 /**
@@ -176,5 +177,54 @@ export class TmdbController {
   @ApiResponse({ status: 200, description: 'Movie genres list retrieved successfully' })
   async getGenres() {
     return this.tmdbService.getGenres();
+  }
+
+  // ======================
+  // PUBLIC ENDPOINTS
+  // ======================
+
+  @Public()
+  @Get('posters/top-rated')
+  @ApiOperation({
+    summary: 'Obtener posters aleatorios de películas mejor calificadas',
+    description:
+      'Devuelve 10 posters aleatorios de las mejores películas calificadas en TMDb. ' +
+      'Endpoint público perfecto para mostrar en la pantalla de login como fondo visual atractivo.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Posters de películas obtenidos exitosamente',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          tmdbId: { type: 'number', example: 550 },
+          title: { type: 'string', example: 'Fight Club' },
+          posterPath: { type: 'string', example: '/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg' },
+          voteAverage: { type: 'number', example: 8.433 },
+          voteCount: { type: 'number', example: 26280 },
+        },
+      },
+      example: [
+        {
+          tmdbId: 550,
+          title: 'Fight Club',
+          posterPath: '/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg',
+          voteAverage: 8.433,
+          voteCount: 26280,
+        },
+        {
+          tmdbId: 13,
+          title: 'Forrest Gump',
+          posterPath: '/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg',
+          voteAverage: 8.471,
+          voteCount: 26661,
+        },
+      ],
+    },
+  })
+  async getTopRatedPosters() {
+    return this.tmdbService.getRandomTopRatedPosters();
   }
 }
