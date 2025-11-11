@@ -37,14 +37,15 @@ export class LogMediaViewDto {
   @ApiProperty({
     description: 'Fecha y hora en que se vio el contenido',
     example: {
-      seconds: 1625257200,
-      nanoseconds: 0,
+      _seconds: 1625257200,
+      _nanoseconds: 0,
     },
+    required: false,
   })
   @IsOptional()
   watchedAt?: {
-    seconds: number;
-    nanoseconds: number;
+    _seconds: number;
+    _nanoseconds: number;
   };
 
   @ApiProperty({

@@ -96,7 +96,7 @@ export class MediaLogsService {
       tmdbId: logData.tmdbId,
       mediaType: logData.mediaType,
       watchedAt: logData.watchedAt
-        ? new Timestamp(logData.watchedAt.seconds, logData.watchedAt.nanoseconds)
+        ? new Timestamp(logData.watchedAt._seconds, logData.watchedAt._nanoseconds)
         : Timestamp.now(),
       hadSeenBefore: logData.hadSeenBefore,
       createdAt: Timestamp.now(),
@@ -245,8 +245,8 @@ export class MediaLogsService {
     }
     if (updateData.watchedAt !== undefined) {
       updates.watchedAt = new Timestamp(
-        updateData.watchedAt.seconds,
-        updateData.watchedAt.nanoseconds,
+        updateData.watchedAt._seconds,
+        updateData.watchedAt._nanoseconds,
       );
     }
 

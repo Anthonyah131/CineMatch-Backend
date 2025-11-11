@@ -36,16 +36,16 @@ export class UpdateMediaLogDto {
   review?: string;
 
   @ApiPropertyOptional({
-    description: 'Fecha y hora en que se vio el contenido',
+    description: 'Fecha y hora en que se vió el contenido',
     example: {
-      seconds: 1625257200,
-      nanoseconds: 0,
+      _seconds: 1625257200,
+      _nanoseconds: 0,
     },
   })
   @IsOptional()
   watchedAt?: {
-    seconds: number;
-    nanoseconds: number;
+    _seconds: number;
+    _nanoseconds: number;
   };
 
   @ApiPropertyOptional({
