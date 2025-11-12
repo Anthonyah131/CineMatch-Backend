@@ -517,6 +517,49 @@ export class UsersController {
     return this.usersService.getFollowing(uid, limit);
   }
 
+  @Get('me/following-activity')
+  @ApiOperation({
+    summary: 'Obtener actividad de personas que sigo',
+    description:
+      'Devuelve los últimos 10 logs/reviews de las personas que sigo (amigos). ' +
+      'Perfecto para mostrar un feed de actividad en el home.',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Número máximo de actividades a devolver',
+    example: 10,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Feed de actividad obtenido exitosamente',
+    schema: {
+      example: [
+        {
+          id: 'log123',
+          userId: 'user456',
+          userName: 'John Doe',
+          userPhoto: 'https://...',
+          tmdbId: 550,
+          mediaType: 'movie',
+          title: 'Fight Club',
+          posterPath: '/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg',
+          rating: 5,
+          review: 'Increíble película con giros inesperados',
+          reviewLang: 'es',
+          watchedAt: { _seconds: 1699048800, _nanoseconds: 0 },
+          createdAt: { _seconds: 1699048800, _nanoseconds: 0 },
+        },
+      ],
+    },
+  })
+  async getFollowingActivityFeed(
+    @CurrentUser('uid') uid: string,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+  ) {
+    return this.usersService.getFollowingActivityFeed(uid, limit);
+  }
+
   @Get('me/following/:targetUid')
   @ApiOperation({
     summary: 'Check if I follow user',

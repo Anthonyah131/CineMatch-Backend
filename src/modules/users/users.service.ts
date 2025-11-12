@@ -656,4 +656,104 @@ export class UsersService {
       throw new Error(`Failed to search users: ${getErrorMessage(error)}`);
     }
   }
+
+  /**
+   * Get activity feed from followed users (friends)
+   * Returns last 10 logs/reviews from people the user follows
+   */
+  async getFollowingActivityFeed(
+    uid: string,
+    limit: number = 10,
+  ): Promise<
+    Array<{
+      id: string;
+      userId: string;
+      userName: string;
+      userPhoto: string;
+      tmdbId: number;
+      mediaType: 'movie' | 'tv';
+      title?: string;
+      posterPath?: string;
+      rating?: number;
+      review?: string;
+      reviewLang?: string;
+      watchedAt: any;
+      createdAt: any;
+    }>
+  > {
+    try {
+      // Get list of users that current user is following
+      const followingSnapshot = await this.collection.doc(uid).collection('following').get();
+
+      if (followingSnapshot.empty) {
+        return [];
+      }
+
+      const followingUids = followingSnapshot.docs.map((doc) => doc.data().uid as string);
+
+      // Firestore has a limit of 10 items for 'in' queries, so we need to batch
+      const batchSize = 10;
+      const allLogs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+
+      for (let i = 0; i < followingUids.length; i += batchSize) {
+        const batch = followingUids.slice(i, i + batchSize);
+
+        const logsSnapshot = await this.firestore
+          .collection('media_logs')
+          .where('userId', 'in', batch)
+          .orderBy('createdAt', 'desc')
+          .limit(limit)
+          .get();
+
+        allLogs.push(...logsSnapshot.docs);
+      }
+
+      // Sort all logs by createdAt and take top 10
+      const sortedLogs = allLogs
+        .sort((a, b) => {
+          const aData = a.data();
+          const bData = b.data();
+          const aTime = (aData.createdAt as Timestamp)?.toMillis() || 0;
+          const bTime = (bData.createdAt as Timestamp)?.toMillis() || 0;
+          return bTime - aTime;
+        })
+        .slice(0, limit);
+
+      // Enrich logs with user info and media cache data
+      const enrichedLogs = await Promise.all(
+        sortedLogs.map(async (doc) => {
+          const logData = doc.data();
+
+          // Get user info
+          const userDoc = await this.collection.doc(logData.userId as string).get();
+          const userData = userDoc.data() as User | undefined;
+
+          // Get media cache info
+          const mediaKey = `${logData.tmdbId}_${logData.mediaType}`;
+          const cacheDoc = await this.firestore.collection('media_cache').doc(mediaKey).get();
+          const cacheData = cacheDoc.data();
+
+          return {
+            id: doc.id,
+            userId: logData.userId as string,
+            userName: userData?.displayName || 'Usuario',
+            userPhoto: userData?.photoURL || '',
+            tmdbId: logData.tmdbId as number,
+            mediaType: logData.mediaType as 'movie' | 'tv',
+            title: cacheData?.title as string | undefined,
+            posterPath: cacheData?.posterPath as string | undefined,
+            rating: logData.rating as number | undefined,
+            review: logData.review as string | undefined,
+            reviewLang: logData.reviewLang as string | undefined,
+            watchedAt: logData.watchedAt as Timestamp,
+            createdAt: logData.createdAt as Timestamp,
+          };
+        }),
+      );
+
+      return enrichedLogs;
+    } catch (error) {
+      throw new Error(`Failed to get following activity feed: ${getErrorMessage(error)}`);
+    }
+  }
 }

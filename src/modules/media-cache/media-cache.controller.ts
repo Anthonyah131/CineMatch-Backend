@@ -256,4 +256,63 @@ export class MediaCacheController {
 
     return { source: 'tmdb', data: tvDetails };
   }
+
+  // ==================== MEDIA DETAILS WITH REVIEWS ====================
+
+  @Get(':mediaType/:tmdbId/details-with-reviews')
+  @ApiOperation({
+    summary: 'Obtener detalles de media con reviews',
+    description:
+      'Verifica si la película/serie está en caché y obtiene las últimas 5 reviews con información del usuario. ' +
+      'Perfecto para mostrar en la página de detalles de una película.',
+  })
+  @ApiParam({
+    name: 'mediaType',
+    description: 'Tipo de contenido',
+    enum: ['movie', 'tv'],
+    example: 'movie',
+  })
+  @ApiParam({
+    name: 'tmdbId',
+    description: 'ID de TMDb de la película/serie',
+    example: 550,
+    type: Number,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Detalles obtenidos exitosamente',
+    schema: {
+      example: {
+        isCached: true,
+        cacheData: {
+          tmdbId: 550,
+          mediaType: 'movie',
+          title: 'Fight Club',
+          posterPath: '/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg',
+          releaseYear: 1999,
+          genres: [18, 53],
+          voteAverage: 8.433,
+        },
+        reviews: [
+          {
+            id: 'log123',
+            userId: 'user456',
+            userName: 'John Doe',
+            userPhoto: 'https://...',
+            rating: 5,
+            review: 'Increíble película con giros inesperados',
+            reviewLang: 'es',
+            watchedAt: { _seconds: 1699048800, _nanoseconds: 0 },
+            createdAt: { _seconds: 1699048800, _nanoseconds: 0 },
+          },
+        ],
+      },
+    },
+  })
+  async getMediaDetailsWithReviews(
+    @Param('mediaType') mediaType: 'movie' | 'tv',
+    @Param('tmdbId', ParseIntPipe) tmdbId: number,
+  ) {
+    return this.mediaCacheService.getMediaDetailsWithReviews(tmdbId, mediaType);
+  }
 }

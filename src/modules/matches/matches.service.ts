@@ -60,6 +60,15 @@ export class MatchesService {
           continue;
         }
 
+        // NEW: Check rating compatibility (±1 star difference)
+        // If both users rated the movie, their ratings should be similar
+        if (myLog.rating && otherLog.rating) {
+          const ratingDifference = Math.abs(myLog.rating - otherLog.rating);
+          if (ratingDifference > 1) {
+            continue; // Skip if ratings differ by more than 1 star
+          }
+        }
+
         // Check if we already have a match with this user for this movie
         const existingMatch = potentialMatches.find(
           (m) => m.userId === otherLog.userId && m.movieId === myLog.tmdbId,
@@ -95,6 +104,8 @@ export class MatchesService {
           theirWatchedAt: otherLog.watchedAt,
           myWatchedAt: myLog.watchedAt,
           daysAgo,
+          myRating: myLog.rating,
+          theirRating: otherLog.rating,
         });
       }
     }
