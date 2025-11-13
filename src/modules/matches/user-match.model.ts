@@ -23,6 +23,10 @@ export interface PotentialMatch {
   myWatchedAt: Timestamp;
   /** How many days ago they watched it (for sorting/filtering) */
   daysAgo: number;
+  /** My rating for the movie */
+  myRating?: number;
+  /** Their rating for the movie */
+  theirRating?: number;
 }
 
 /**

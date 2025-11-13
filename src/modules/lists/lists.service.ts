@@ -49,6 +49,79 @@ export class ListsService {
   }
 
   /**
+   * Search public lists by title or owner name with pagination
+   * Case-insensitive partial match search
+   * @param query - Search query for list title or owner name
+   * @param page - Page number (default: 1)
+   * @param limit - Items per page (default: 20)
+   * @returns Paginated public lists with owner info
+   */
+  async searchPublicLists(
+    query: string,
+    page = 1,
+    limit = 20,
+  ): Promise<{
+    items: (List & { ownerDisplayName: string })[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const q = query.trim().toLowerCase();
+    if (!q) {
+      return { items: [], total: 0, page, limit };
+    }
+
+    // Fetch all public lists and users to perform in-memory filtering
+    // Note: For large datasets, consider using a search service like Algolia
+    const [listsSnapshot, usersSnapshot] = await Promise.all([
+      this.firestore.collection('lists').where('isPublic', '==', true).get(),
+      this.firestore.collection('users').get(),
+    ]);
+
+    // Create a map of userId -> displayName (lowercase for case-insensitive search)
+    const userDisplayNames = new Map<string, string>();
+    const userOriginalNames = new Map<string, string>();
+    usersSnapshot.docs.forEach((doc) => {
+      const data = doc.data() as { displayName?: string };
+      if (data.displayName) {
+        userDisplayNames.set(doc.id, data.displayName.toLowerCase());
+        userOriginalNames.set(doc.id, data.displayName);
+      }
+    });
+
+    // Filter lists that match the query in title OR owner displayName
+    const matchingDocs = listsSnapshot.docs.filter((doc) => {
+      const data = doc.data() as List;
+      const titleLower = data.title.toLowerCase();
+      const ownerNameLower = userDisplayNames.get(data.ownerId) || '';
+
+      return titleLower.includes(q) || ownerNameLower.includes(q);
+    });
+
+    // Sort by createdAt desc
+    matchingDocs.sort((a, b) => {
+      const aCreated = (a.data().createdAt as Timestamp)?.toMillis() || 0;
+      const bCreated = (b.data().createdAt as Timestamp)?.toMillis() || 0;
+      return bCreated - aCreated;
+    });
+
+    const total = matchingDocs.length;
+    const offset = Math.max(page - 1, 0) * limit;
+    const pageDocs = matchingDocs.slice(offset, offset + limit);
+
+    // Enrich with owner display name
+    const items = pageDocs.map((doc) => {
+      const listData = { id: doc.id, ...doc.data() } as List;
+      return {
+        ...listData,
+        ownerDisplayName: userOriginalNames.get(listData.ownerId) || 'Unknown',
+      };
+    });
+
+    return { items, total, page, limit };
+  }
+
+  /**
    * Get all lists for a specific user
    * @param userId - User ID to get lists for
    * @param currentUserId - Optional current user ID to filter private lists

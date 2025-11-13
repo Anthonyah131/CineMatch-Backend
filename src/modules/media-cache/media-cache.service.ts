@@ -215,4 +215,71 @@ export class MediaCacheService {
 
     await this.firestore.collection('media_cache').doc(mediaKey).delete();
   }
+
+  /**
+   * Get media details with cache status and recent reviews
+   * Returns cache info and last 5 reviews with user information
+   */
+  async getMediaDetailsWithReviews(
+    tmdbId: number,
+    mediaType: 'movie' | 'tv',
+  ): Promise<{
+    isCached: boolean;
+    cacheData?: MediaCache;
+    reviews: Array<{
+      id: string;
+      userId: string;
+      userName: string;
+      userPhoto: string;
+      rating: number;
+      review: string;
+      reviewLang?: string;
+      watchedAt: Timestamp;
+      createdAt: Timestamp;
+    }>;
+  }> {
+    // Check if media is cached
+    const cached = await this.getCachedMedia(tmdbId, mediaType);
+
+    // Get last 5 reviews for this media
+    const logsSnapshot = await this.firestore
+      .collection('media_logs')
+      .where('tmdbId', '==', tmdbId)
+      .where('mediaType', '==', mediaType)
+      .where('review', '>', '')
+      .orderBy('review')
+      .orderBy('createdAt', 'desc')
+      .limit(5)
+      .get();
+
+    // Get user info for each review
+    const reviewsPromises = logsSnapshot.docs.map(async (doc) => {
+      const logData = doc.data();
+      const userDoc = await this.firestore
+        .collection('users')
+        .doc(logData.userId as string)
+        .get();
+      const userData = userDoc.data();
+
+      return {
+        id: doc.id,
+        userId: logData.userId as string,
+        userName: (userData?.displayName as string) || 'Usuario',
+        userPhoto: (userData?.photoURL as string) || '',
+        rating: (logData.rating as number) || 0,
+        review: logData.review as string,
+        reviewLang: logData.reviewLang as string | undefined,
+        watchedAt: logData.watchedAt as Timestamp,
+        createdAt: logData.createdAt as Timestamp,
+      };
+    });
+
+    const reviews = await Promise.all(reviewsPromises);
+
+    return {
+      isCached: !!cached,
+      cacheData: cached || undefined,
+      reviews,
+    };
+  }
 }

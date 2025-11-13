@@ -7,6 +7,9 @@ import {
   Patch,
   Param,
   Body,
+  Query,
+  DefaultValuePipe,
+  ParseIntPipe,
   HttpStatus,
   HttpCode,
 } from '@nestjs/common';
@@ -45,6 +48,23 @@ export class ListsController {
     @Body() listData: CreateListDto,
   ): Promise<List> {
     return this.listsService.createList(userId, listData);
+  }
+
+  @Get('search')
+  @ApiOperation({
+    summary: 'Search public lists by title',
+    description: 'Search for public lists by title with pagination. Only returns public lists.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated search results with owner display name',
+  })
+  async searchPublicLists(
+    @Query('q') query: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ) {
+    return this.listsService.searchPublicLists(query, page, limit);
   }
 
   @Get('my-lists')
