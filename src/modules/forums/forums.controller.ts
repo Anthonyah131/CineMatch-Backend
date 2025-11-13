@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Param,
+  Body,
+  Query,
+  DefaultValuePipe,
+  ParseIntPipe,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -171,6 +182,40 @@ export class ForumsController {
   })
   async getAllForums(@Query('limit') limit?: string): Promise<ForumSummary[]> {
     return this.forumsService.getAllForums(limit ? parseInt(limit) : undefined);
+  }
+
+  @Get('owner/:ownerId')
+  @ApiOperation({
+    summary: 'Get forums created by a user',
+    description: 'Returns paginated list of forums created by the specified user (basic info).',
+  })
+  @ApiParam({ name: 'ownerId', description: 'Firebase UID of owner' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiResponse({ status: 200, description: 'Forums retrieved successfully' })
+  async getForumsByOwner(
+    @Param('ownerId') ownerId: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ) {
+    return this.forumsService.getForumsByOwner(ownerId, page, limit);
+  }
+
+  @Get('search')
+  @ApiOperation({
+    summary: 'Search forums by title or owner display name',
+    description: 'Single input search that matches forum title or owner displayName, paginated.',
+  })
+  @ApiQuery({ name: 'q', required: true, description: 'Search query' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiResponse({ status: 200, description: 'Search results (paginated)' })
+  async searchForums(
+    @Query('q') q: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ) {
+    return this.forumsService.searchForums(q, page, limit);
   }
 
   @Get(':forumId')

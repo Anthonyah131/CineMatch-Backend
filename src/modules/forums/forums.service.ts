@@ -99,6 +99,163 @@ export class ForumsService {
   }
 
   /**
+   * Get forums created by a specific user with pagination
+   * Returns basic ForumSummary entries
+   */
+  async getForumsByOwner(
+    ownerId: string,
+    page = 1,
+    limit = 20,
+  ): Promise<{ items: ForumSummary[]; total: number; page: number; limit: number }> {
+    const offset = Math.max(page - 1, 0) * limit;
+
+    // Query forums by ownerId
+    const query = this.forumsCollection
+      .where('ownerId', '==', ownerId)
+      .orderBy('createdAt', 'desc')
+      .offset(offset)
+      .limit(limit);
+
+    const [snapshot, countSnapshot] = await Promise.all([
+      query.get(),
+      this.forumsCollection.where('ownerId', '==', ownerId).count().get(),
+    ]);
+
+    const items: ForumSummary[] = [];
+
+    for (const doc of snapshot.docs) {
+      const data = doc.data() as Forum;
+
+      const ownerDoc = await this.usersCollection.doc(data.ownerId).get();
+      const ownerData = ownerDoc.data() as { displayName?: string } | undefined;
+
+      const postsSnapshot = await this.forumsCollection
+        .doc(doc.id)
+        .collection('posts')
+        .count()
+        .get();
+
+      const lastPostSnapshot = await this.forumsCollection
+        .doc(doc.id)
+        .collection('posts')
+        .orderBy('createdAt', 'desc')
+        .limit(1)
+        .get();
+
+      items.push({
+        forumId: doc.id,
+        title: data.title,
+        description: data.description,
+        ownerId: data.ownerId,
+        ownerDisplayName: ownerData?.displayName || 'Unknown',
+        postsCount: postsSnapshot.data().count,
+        lastPostAt: !lastPostSnapshot.empty
+          ? (lastPostSnapshot.docs[0].data().createdAt as Timestamp)
+          : undefined,
+      });
+    }
+
+    return { items, total: countSnapshot.data().count, page, limit };
+  }
+
+  /**
+   * Search forums by title OR owner display name (single input) with pagination
+   * Performs two queries (title matches and owner matches) and merges results
+   */
+  async searchForums(
+    queryInput: string,
+    page = 1,
+    limit = 20,
+  ): Promise<{ items: ForumSummary[]; total: number; page: number; limit: number }> {
+    const q = queryInput.trim();
+    if (!q) {
+      return { items: [], total: 0, page, limit };
+    }
+
+    const titleStart = q;
+    const titleEnd = q + '\uf8ff';
+
+    // Find users whose displayName matches the query (prefix match)
+    const usersSnapshot = await this.usersCollection
+      .where('displayName', '>=', q)
+      .where('displayName', '<=', titleEnd)
+      .limit(50)
+      .get();
+
+    const ownerIds = usersSnapshot.docs.map((d) => d.id);
+
+    // Query forums by title range
+    const titleQuerySnapshot = await this.forumsCollection
+      .where('title', '>=', titleStart)
+      .where('title', '<=', titleEnd)
+      .get();
+
+    // Query forums by ownerIds (if any)
+    const ownerDocs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+    if (ownerIds.length > 0) {
+      // Firestore 'in' supports up to 10 values; batch if necessary
+      for (let i = 0; i < ownerIds.length; i += 10) {
+        const batch = ownerIds.slice(i, i + 10);
+        const snap = await this.forumsCollection.where('ownerId', 'in', batch).get();
+        ownerDocs.push(...snap.docs);
+      }
+    }
+
+    // Merge results and dedupe by forum id
+    const map = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+    for (const doc of titleQuerySnapshot.docs) map.set(doc.id, doc);
+    for (const doc of ownerDocs) map.set(doc.id, doc);
+
+    const allDocs = Array.from(map.values());
+
+    // Sort by createdAt desc
+    allDocs.sort((a, b) => {
+      const aCreated = (a.data().createdAt as Timestamp)?.toMillis() || 0;
+      const bCreated = (b.data().createdAt as Timestamp)?.toMillis() || 0;
+      return bCreated - aCreated;
+    });
+
+    const total = allDocs.length;
+    const offset = Math.max(page - 1, 0) * limit;
+    const pageDocs = allDocs.slice(offset, offset + limit);
+
+    const items: ForumSummary[] = [];
+    for (const doc of pageDocs) {
+      const data = doc.data() as Forum;
+
+      const ownerDoc = await this.usersCollection.doc(data.ownerId).get();
+      const ownerData = ownerDoc.data() as { displayName?: string } | undefined;
+
+      const postsSnapshot = await this.forumsCollection
+        .doc(doc.id)
+        .collection('posts')
+        .count()
+        .get();
+
+      const lastPostSnapshot = await this.forumsCollection
+        .doc(doc.id)
+        .collection('posts')
+        .orderBy('createdAt', 'desc')
+        .limit(1)
+        .get();
+
+      items.push({
+        forumId: doc.id,
+        title: data.title,
+        description: data.description,
+        ownerId: data.ownerId,
+        ownerDisplayName: ownerData?.displayName || 'Unknown',
+        postsCount: postsSnapshot.data().count,
+        lastPostAt: !lastPostSnapshot.empty
+          ? (lastPostSnapshot.docs[0].data().createdAt as Timestamp)
+          : undefined,
+      });
+    }
+
+    return { items, total, page, limit };
+  }
+
+  /**
    * Get forum by ID
    */
   async getForumById(forumId: string): Promise<Forum & { id: string }> {

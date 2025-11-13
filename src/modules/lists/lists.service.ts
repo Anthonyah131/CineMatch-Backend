@@ -49,6 +49,62 @@ export class ListsService {
   }
 
   /**
+   * Search public lists by title with pagination
+   * @param query - Search query for list title
+   * @param page - Page number (default: 1)
+   * @param limit - Items per page (default: 20)
+   * @returns Paginated public lists with owner info
+   */
+  async searchPublicLists(
+    query: string,
+    page = 1,
+    limit = 20,
+  ): Promise<{
+    items: (List & { ownerDisplayName: string })[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const q = query.trim();
+    if (!q) {
+      return { items: [], total: 0, page, limit };
+    }
+
+    const titleStart = q;
+    const titleEnd = q + '\uf8ff';
+
+    // Query public lists by title
+    const snapshot = await this.firestore
+      .collection('lists')
+      .where('isPublic', '==', true)
+      .where('title', '>=', titleStart)
+      .where('title', '<=', titleEnd)
+      .orderBy('title')
+      .orderBy('createdAt', 'desc')
+      .get();
+
+    const total = snapshot.docs.length;
+    const offset = Math.max(page - 1, 0) * limit;
+    const pageDocs = snapshot.docs.slice(offset, offset + limit);
+
+    // Enrich with owner display name
+    const items = await Promise.all(
+      pageDocs.map(async (doc) => {
+        const listData = { id: doc.id, ...doc.data() } as List;
+        const ownerDoc = await this.firestore.collection('users').doc(listData.ownerId).get();
+        const ownerData = ownerDoc.data() as { displayName?: string } | undefined;
+
+        return {
+          ...listData,
+          ownerDisplayName: ownerData?.displayName || 'Unknown',
+        };
+      }),
+    );
+
+    return { items, total, page, limit };
+  }
+
+  /**
    * Get all lists for a specific user
    * @param userId - User ID to get lists for
    * @param currentUserId - Optional current user ID to filter private lists
