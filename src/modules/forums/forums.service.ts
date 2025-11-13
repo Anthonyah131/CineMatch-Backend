@@ -160,71 +160,59 @@ export class ForumsService {
 
   /**
    * Search forums by title OR owner display name (single input) with pagination
-   * Performs two queries (title matches and owner matches) and merges results
+   * Case-insensitive partial match search
    */
   async searchForums(
     queryInput: string,
     page = 1,
     limit = 20,
   ): Promise<{ items: ForumSummary[]; total: number; page: number; limit: number }> {
-    const q = queryInput.trim();
+    const q = queryInput.trim().toLowerCase();
     if (!q) {
       return { items: [], total: 0, page, limit };
     }
 
-    const titleStart = q;
-    const titleEnd = q + '\uf8ff';
+    // Fetch all forums and users to perform in-memory filtering
+    // Note: For large datasets, consider using a search service like Algolia
+    const [forumsSnapshot, usersSnapshot] = await Promise.all([
+      this.forumsCollection.get(),
+      this.usersCollection.get(),
+    ]);
 
-    // Find users whose displayName matches the query (prefix match)
-    const usersSnapshot = await this.usersCollection
-      .where('displayName', '>=', q)
-      .where('displayName', '<=', titleEnd)
-      .limit(50)
-      .get();
-
-    const ownerIds = usersSnapshot.docs.map((d) => d.id);
-
-    // Query forums by title range
-    const titleQuerySnapshot = await this.forumsCollection
-      .where('title', '>=', titleStart)
-      .where('title', '<=', titleEnd)
-      .get();
-
-    // Query forums by ownerIds (if any)
-    const ownerDocs: FirebaseFirestore.QueryDocumentSnapshot[] = [];
-    if (ownerIds.length > 0) {
-      // Firestore 'in' supports up to 10 values; batch if necessary
-      for (let i = 0; i < ownerIds.length; i += 10) {
-        const batch = ownerIds.slice(i, i + 10);
-        const snap = await this.forumsCollection.where('ownerId', 'in', batch).get();
-        ownerDocs.push(...snap.docs);
+    // Create a map of userId -> displayName (lowercase for case-insensitive search)
+    const userDisplayNames = new Map<string, string>();
+    const userOriginalNames = new Map<string, string>();
+    usersSnapshot.docs.forEach((doc) => {
+      const data = doc.data() as { displayName?: string };
+      if (data.displayName) {
+        userDisplayNames.set(doc.id, data.displayName.toLowerCase());
+        userOriginalNames.set(doc.id, data.displayName);
       }
-    }
+    });
 
-    // Merge results and dedupe by forum id
-    const map = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
-    for (const doc of titleQuerySnapshot.docs) map.set(doc.id, doc);
-    for (const doc of ownerDocs) map.set(doc.id, doc);
+    // Filter forums that match the query in title OR owner displayName
+    const matchingDocs = forumsSnapshot.docs.filter((doc) => {
+      const data = doc.data() as Forum;
+      const titleLower = data.title.toLowerCase();
+      const ownerNameLower = userDisplayNames.get(data.ownerId) || '';
 
-    const allDocs = Array.from(map.values());
+      return titleLower.includes(q) || ownerNameLower.includes(q);
+    });
 
     // Sort by createdAt desc
-    allDocs.sort((a, b) => {
+    matchingDocs.sort((a, b) => {
       const aCreated = (a.data().createdAt as Timestamp)?.toMillis() || 0;
       const bCreated = (b.data().createdAt as Timestamp)?.toMillis() || 0;
       return bCreated - aCreated;
     });
 
-    const total = allDocs.length;
+    const total = matchingDocs.length;
     const offset = Math.max(page - 1, 0) * limit;
-    const pageDocs = allDocs.slice(offset, offset + limit);
+    const pageDocs = matchingDocs.slice(offset, offset + limit);
 
     const items: ForumSummary[] = [];
     for (const doc of pageDocs) {
       const data = doc.data() as Forum;
-
-      const ownerDoc = await this.usersCollection.doc(data.ownerId).get();
-      const ownerData = ownerDoc.data() as { displayName?: string } | undefined;
 
       const postsSnapshot = await this.forumsCollection
         .doc(doc.id)
@@ -244,7 +232,7 @@ export class ForumsService {
         title: data.title,
         description: data.description,
         ownerId: data.ownerId,
-        ownerDisplayName: ownerData?.displayName || 'Unknown',
+        ownerDisplayName: userOriginalNames.get(data.ownerId) || 'Unknown',
         postsCount: postsSnapshot.data().count,
         lastPostAt: !lastPostSnapshot.empty
           ? (lastPostSnapshot.docs[0].data().createdAt as Timestamp)

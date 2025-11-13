@@ -49,8 +49,9 @@ export class ListsService {
   }
 
   /**
-   * Search public lists by title with pagination
-   * @param query - Search query for list title
+   * Search public lists by title or owner name with pagination
+   * Case-insensitive partial match search
+   * @param query - Search query for list title or owner name
    * @param page - Page number (default: 1)
    * @param limit - Items per page (default: 20)
    * @returns Paginated public lists with owner info
@@ -65,41 +66,57 @@ export class ListsService {
     page: number;
     limit: number;
   }> {
-    const q = query.trim();
+    const q = query.trim().toLowerCase();
     if (!q) {
       return { items: [], total: 0, page, limit };
     }
 
-    const titleStart = q;
-    const titleEnd = q + '\uf8ff';
+    // Fetch all public lists and users to perform in-memory filtering
+    // Note: For large datasets, consider using a search service like Algolia
+    const [listsSnapshot, usersSnapshot] = await Promise.all([
+      this.firestore.collection('lists').where('isPublic', '==', true).get(),
+      this.firestore.collection('users').get(),
+    ]);
 
-    // Query public lists by title
-    const snapshot = await this.firestore
-      .collection('lists')
-      .where('isPublic', '==', true)
-      .where('title', '>=', titleStart)
-      .where('title', '<=', titleEnd)
-      .orderBy('title')
-      .orderBy('createdAt', 'desc')
-      .get();
+    // Create a map of userId -> displayName (lowercase for case-insensitive search)
+    const userDisplayNames = new Map<string, string>();
+    const userOriginalNames = new Map<string, string>();
+    usersSnapshot.docs.forEach((doc) => {
+      const data = doc.data() as { displayName?: string };
+      if (data.displayName) {
+        userDisplayNames.set(doc.id, data.displayName.toLowerCase());
+        userOriginalNames.set(doc.id, data.displayName);
+      }
+    });
 
-    const total = snapshot.docs.length;
+    // Filter lists that match the query in title OR owner displayName
+    const matchingDocs = listsSnapshot.docs.filter((doc) => {
+      const data = doc.data() as List;
+      const titleLower = data.title.toLowerCase();
+      const ownerNameLower = userDisplayNames.get(data.ownerId) || '';
+
+      return titleLower.includes(q) || ownerNameLower.includes(q);
+    });
+
+    // Sort by createdAt desc
+    matchingDocs.sort((a, b) => {
+      const aCreated = (a.data().createdAt as Timestamp)?.toMillis() || 0;
+      const bCreated = (b.data().createdAt as Timestamp)?.toMillis() || 0;
+      return bCreated - aCreated;
+    });
+
+    const total = matchingDocs.length;
     const offset = Math.max(page - 1, 0) * limit;
-    const pageDocs = snapshot.docs.slice(offset, offset + limit);
+    const pageDocs = matchingDocs.slice(offset, offset + limit);
 
     // Enrich with owner display name
-    const items = await Promise.all(
-      pageDocs.map(async (doc) => {
-        const listData = { id: doc.id, ...doc.data() } as List;
-        const ownerDoc = await this.firestore.collection('users').doc(listData.ownerId).get();
-        const ownerData = ownerDoc.data() as { displayName?: string } | undefined;
-
-        return {
-          ...listData,
-          ownerDisplayName: ownerData?.displayName || 'Unknown',
-        };
-      }),
-    );
+    const items = pageDocs.map((doc) => {
+      const listData = { id: doc.id, ...doc.data() } as List;
+      return {
+        ...listData,
+        ownerDisplayName: userOriginalNames.get(listData.ownerId) || 'Unknown',
+      };
+    });
 
     return { items, total, page, limit };
   }
