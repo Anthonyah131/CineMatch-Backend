@@ -331,12 +331,54 @@ export class ListsService {
       throw new NotFoundException(`Item with ID ${itemId} not found`);
     }
 
+    const itemToRemove = itemDoc.data() as ListItem;
     await itemRef.delete();
 
-    // Update list itemsCount
-    await listRef.update({
+    // Prepare update data
+    const updateData: Record<string, any> = {
       itemsCount: list.itemsCount - 1,
       updatedAt: Timestamp.now(),
-    });
+    };
+
+    // Check if the removed item was the list cover
+    const removedItemWasCover = list.cover.tmdbId === itemToRemove.tmdbId;
+
+    if (removedItemWasCover) {
+      // If this was the last item, reset cover to empty
+      if (list.itemsCount === 1) {
+        updateData['cover'] = {
+          tmdbId: 0,
+          mediaType: 'movie' as const,
+          title: '',
+          posterPath: '',
+        };
+      } else {
+        // Find the next available item to use as cover
+        const remainingItemsSnapshot = await listRef.collection('items')
+          .where('tmdbId', '!=', itemToRemove.tmdbId)
+          .limit(1)
+          .get();
+
+        if (!remainingItemsSnapshot.empty) {
+          const nextItem = remainingItemsSnapshot.docs[0].data() as ListItem;
+          updateData['cover'] = {
+            tmdbId: nextItem.tmdbId,
+            mediaType: nextItem.mediaType,
+            title: nextItem.title,
+            posterPath: nextItem.posterPath,
+          };
+        } else {
+          // Fallback: reset to empty cover
+          updateData['cover'] = {
+            tmdbId: 0,
+            mediaType: 'movie' as const,
+            title: '',
+            posterPath: '',
+          };
+        }
+      }
+    }
+
+    await listRef.update(updateData);
   }
 }
